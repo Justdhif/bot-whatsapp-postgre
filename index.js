@@ -35,8 +35,17 @@ let qrCodeData = null;
 // Fungsi untuk mengecek apakah bot aktif (jam 6:00 - 22:00 WIB)
 function isBotActive() {
   const now = new Date();
-  const hours = now.getUTCHours() + 7; // Konversi UTC ke WIB (UTC+7)
-  return hours >= 6 && hours < 22; // Aktif dari jam 6:00 sampai 21:59 WIB
+  const utcHours = now.getUTCHours(); // Ambil jam dalam UTC
+  let wibHours = utcHours + 7; // Konversi ke WIB (UTC+7)
+
+  // Jika hasilnya lebih dari 24, kurangi 24 untuk mendapatkan waktu yang valid
+  if (wibHours >= 24) {
+    wibHours -= 24;
+  }
+
+  console.log(`Waktu UTC: ${utcHours}:${now.getUTCMinutes()}`);
+  console.log(`Waktu WIB: ${wibHours}:${now.getUTCMinutes()}`);
+  return wibHours >= 6 && wibHours < 22; // Aktif dari jam 6:00 sampai 21:59 WIB
 }
 
 // Fungsi untuk mengecek status aktif/non-aktif
