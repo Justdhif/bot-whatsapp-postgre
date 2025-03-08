@@ -1,32 +1,44 @@
 const { Client, LocalAuth } = require("whatsapp-web.js");
 const qrcode = require("qrcode-terminal");
+const express = require("express");
+const app = express();
+const port = process.env.PORT || 3000;
 
 // Inisialisasi client WhatsApp
 const client = new Client({
   authStrategy: new LocalAuth({
     dataPath: process.env.SESSION_DIR || "./session", // Lokasi penyimpanan session
   }),
-  puppeteer: { 
+  puppeteer: {
     headless: true,
     args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-accelerated-2d-canvas',
-        '--no-first-run',
-        '--no-zygote',
-        '--single-process',
-        '--disable-gpu'
-    ]}, // Run in headless mode
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+      "--disable-dev-shm-usage",
+      "--disable-accelerated-2d-canvas",
+      "--no-first-run",
+      "--no-zygote",
+      "--single-process",
+      "--disable-gpu",
+    ],
+  }, // Run in headless mode
 });
 
 // Database sederhana (gunakan object untuk menyimpan data)
 const database = {};
 let groupId = null; // Variabel untuk menyimpan ID group
 
+// Variabel untuk menyimpan QR code
+let qrCodeData = null;
+
 // Generate QR code untuk login
 client.on("qr", (qr) => {
   qrcode.generate(qr, { small: true });
+  qrcode.toDataURL(qr, (err, url) => {
+    if (!err) {
+      qrCodeData = url; // Simpan QR code sebagai data URL
+    }
+  });
 });
 
 // Ketika sudah terautentikasi
@@ -46,6 +58,15 @@ function isBotActive() {
   const now = new Date();
   const hours = now.getHours();
   return hours >= 6 && hours < 22; // Aktif dari jam 6:00 sampai 21:59
+}
+
+// Fungsi untuk mengecek status aktif/non-aktif
+function checkActiveTime() {
+  if (isBotActive()) {
+    console.log("Bot sedang aktif! 🟢");
+  } else {
+    console.log("Bot sedang non-aktif. 🔴");
+  }
 }
 
 // Fungsi untuk mengirim pesan ke group ketika bot aktif/non-aktif
@@ -196,6 +217,27 @@ client.on("message", async (msg) => {
       }
     }
   }
+});
+
+// Buat server web untuk menampilkan QR code
+app.get("/", (req, res) => {
+  if (qrCodeData) {
+    res.send(`
+      <h1>Scan QR Code untuk Login</h1>
+      <img src="${qrCodeData}" alt="QR Code" />
+      <p>Silakan buka WhatsApp di ponsel Anda, pilih "Linked Devices", dan scan QR code di atas.</p>
+    `);
+  } else {
+    res.send(`
+      <h1>Bot sudah terautentikasi!</h1>
+      <p>Tidak perlu scan QR code lagi. Bot sedang berjalan.</p>
+    `);
+  }
+});
+
+// Jalankan server web
+app.listen(port, () => {
+  console.log(`Server web berjalan di http://localhost:${port}`);
 });
 
 // Start client
