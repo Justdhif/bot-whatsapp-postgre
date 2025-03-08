@@ -32,11 +32,11 @@ let groupId = null; // Variabel untuk menyimpan ID group
 // Variabel untuk menyimpan QR code
 let qrCodeData = null;
 
-// Fungsi untuk mengecek apakah bot aktif (jam 6:00 - 22:00)
+// Fungsi untuk mengecek apakah bot aktif (jam 6:00 - 22:00 WIB)
 function isBotActive() {
   const now = new Date();
-  const hours = now.getHours();
-  return hours >= 6 && hours < 22; // Aktif dari jam 6:00 sampai 21:59
+  const hours = now.getUTCHours() + 7; // Konversi UTC ke WIB (UTC+7)
+  return hours >= 6 && hours < 22; // Aktif dari jam 6:00 sampai 21:59 WIB
 }
 
 // Fungsi untuk mengecek status aktif/non-aktif
@@ -56,7 +56,7 @@ async function sendGroupStatusMessage() {
     if (isBotActive()) {
       const activeMessage = `
             🌟 *Bot sedang aktif!* 🌟
-            🕒 Jam operasional: 6:00 - 22:00
+            🕒 Jam operasional: 6:00 - 22:00 WIB
             🤖 Silakan tag bot dengan perintah yang tersedia:
             - !hai
             - !info
@@ -69,7 +69,7 @@ async function sendGroupStatusMessage() {
     } else {
       const inactiveMessage = `
             🔴 *Bot sedang non-aktif!* 🔴
-            🕒 Bot akan aktif kembali besok jam 6:00.
+            🕒 Bot akan aktif kembali besok jam 6:00 WIB.
             😊 Terima kasih telah menggunakan layanan bot!
             `;
       groupChat.sendMessage(inactiveMessage);
@@ -125,7 +125,7 @@ client.on("message", async (msg) => {
 
           case "!info":
             msg.reply(
-              "🤖 Ini adalah bot WhatsApp sederhana. ✨\n🕒 Jam operasional: 6:00 - 22:00"
+              "🤖 Ini adalah bot WhatsApp sederhana. ✨\n🕒 Jam operasional: 6:00 - 22:00 WIB"
             );
             break;
 
@@ -212,7 +212,7 @@ client.on("message", async (msg) => {
       } else {
         // Bot sedang non-aktif
         msg.reply(
-          "🔴 *Maaf, bot hanya aktif dari jam 6:00 sampai 22:00.* Silakan coba lagi nanti! 😊"
+          "🔴 *Maaf, bot hanya aktif dari jam 6:00 sampai 22:00 WIB.* Silakan coba lagi nanti! 😊"
         );
       }
     }
@@ -229,7 +229,7 @@ app.get("/", (req, res) => {
         <h1>Scan QR Code untuk Login</h1>
         <img src="https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(
           qrCodeData
-        )}&size=300x300" alt="QR Code" alt="QR Code" />
+        )}&size=300x300" alt="QR Code" />
         <p>Silakan buka WhatsApp di ponsel Anda, pilih "Linked Devices", dan scan QR code di atas.</p>
       `);
     } else {
