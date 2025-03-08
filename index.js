@@ -33,6 +33,7 @@ let qrCodeData = null;
 
 // Generate QR code untuk login
 client.on("qr", (qr) => {
+  console.log("QR code generated. Silakan scan di browser.");
   qrcode.generate(qr, { small: true });
   qrcode.toDataURL(qr, (err, url) => {
     if (!err) {
@@ -44,6 +45,7 @@ client.on("qr", (qr) => {
 // Ketika sudah terautentikasi
 client.on("ready", () => {
   console.log("Client is ready!");
+  qrCodeData = null; // Reset QR code data
   checkActiveTime(); // Cek waktu aktif saat bot siap
 });
 
@@ -221,13 +223,22 @@ client.on("message", async (msg) => {
 
 // Buat server web untuk menampilkan QR code
 app.get("/", (req, res) => {
-  if (qrCodeData) {
-    res.send(`
-      <h1>Scan QR Code untuk Login</h1>
-      <img src="${qrCodeData}" alt="QR Code" />
-      <p>Silakan buka WhatsApp di ponsel Anda, pilih "Linked Devices", dan scan QR code di atas.</p>
-    `);
+  if (!client.info) {
+    // Jika client belum terautentikasi, tampilkan QR code
+    if (qrCodeData) {
+      res.send(`
+        <h1>Scan QR Code untuk Login</h1>
+        <img src="${qrCodeData}" alt="QR Code" />
+        <p>Silakan buka WhatsApp di ponsel Anda, pilih "Linked Devices", dan scan QR code di atas.</p>
+      `);
+    } else {
+      res.send(`
+        <h1>Menunggu QR code...</h1>
+        <p>Silakan tunggu sebentar, QR code akan segera muncul.</p>
+      `);
+    }
   } else {
+    // Jika client sudah terautentikasi, tampilkan pesan
     res.send(`
       <h1>Bot sudah terautentikasi!</h1>
       <p>Tidak perlu scan QR code lagi. Bot sedang berjalan.</p>
