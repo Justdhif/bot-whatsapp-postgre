@@ -1,7 +1,6 @@
 const { Client, LocalAuth } = require("whatsapp-web.js");
 const qrcode = require("qrcode-terminal");
 const express = require("express");
-require("dotenv").config();
 const app = express();
 const port = process.env.PORT || 3000;
 
@@ -39,6 +38,9 @@ client.on("qr", (qr) => {
   qrcode.toDataURL(qr, (err, url) => {
     if (!err) {
       qrCodeData = url; // Simpan QR code sebagai data URL
+      console.log("QR code data URL berhasil di-generate:", url);
+    } else {
+      console.error("Gagal meng-generate QR code data URL:", err);
     }
   });
 });
