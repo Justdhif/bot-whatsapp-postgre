@@ -2,6 +2,7 @@ const { Client, LocalAuth } = require("whatsapp-web.js");
 const qrcode = require("qrcode-terminal");
 const express = require("express");
 const app = express();
+require("dotenv").config();
 const port = process.env.PORT || 3000;
 
 // Inisialisasi client WhatsApp
@@ -30,33 +31,6 @@ let groupId = null; // Variabel untuk menyimpan ID group
 
 // Variabel untuk menyimpan QR code
 let qrCodeData = null;
-
-// Generate QR code untuk login
-client.on("qr", (qr) => {
-  console.log("QR code generated. Silakan scan di browser.");
-  qrcode.generate(qr, { small: true });
-  qrcode.toDataURL(qr, (err, url) => {
-    if (!err) {
-      qrCodeData = url; // Simpan QR code sebagai data URL
-      console.log("QR code data URL berhasil di-generate:", url);
-    } else {
-      console.error("Gagal meng-generate QR code data URL:", err);
-    }
-  });
-});
-
-// Ketika sudah terautentikasi
-client.on("ready", () => {
-  console.log("Client is ready!");
-  qrCodeData = null; // Reset QR code data
-  checkActiveTime(); // Cek waktu aktif saat bot siap
-});
-
-// Ketika bot dimasukkan ke dalam group
-client.on("group_join", (notification) => {
-  groupId = notification.chatId; // Simpan ID group
-  console.log(`Bot dimasukkan ke group dengan ID: ${groupId}`);
-});
 
 // Fungsi untuk mengecek apakah bot aktif (jam 6:00 - 22:00)
 function isBotActive() {
@@ -102,6 +76,27 @@ async function sendGroupStatusMessage() {
     }
   }
 }
+
+// Generate QR code untuk login
+client.on("qr", (qr) => {
+  console.log("QR code generated. Silakan scan di browser.");
+  qrcode.generate(qr, { small: true });
+  qrCodeData = qr;
+  console.log("QR code data:", qrCodeData);
+});
+
+// Ketika sudah terautentikasi
+client.on("ready", () => {
+  console.log("Client is ready!");
+  qrCodeData = null; // Reset QR code data
+  checkActiveTime(); // Cek waktu aktif saat bot siap
+});
+
+// Ketika bot dimasukkan ke dalam group
+client.on("group_join", (notification) => {
+  groupId = notification.chatId; // Simpan ID group
+  console.log(`Bot dimasukkan ke group dengan ID: ${groupId}`);
+});
 
 // Ketika menerima pesan
 client.on("message", async (msg) => {
@@ -229,12 +224,16 @@ app.get("/", (req, res) => {
   if (!client.info) {
     // Jika client belum terautentikasi, tampilkan QR code
     if (qrCodeData) {
+      console.log("Mengirim QR code ke browser:", qrCodeData);
       res.send(`
         <h1>Scan QR Code untuk Login</h1>
-        <img src="${qrCodeData}" alt="QR Code" />
+        <img src="https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(
+          qrCodeData
+        )}&size=300x300" alt="QR Code" alt="QR Code" />
         <p>Silakan buka WhatsApp di ponsel Anda, pilih "Linked Devices", dan scan QR code di atas.</p>
       `);
     } else {
+      console.log("Menunggu QR code...");
       res.send(`
         <h1>Menunggu QR code...</h1>
         <p>Silakan tunggu sebentar, QR code akan segera muncul.</p>
