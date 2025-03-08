@@ -6,7 +6,18 @@ const client = new Client({
   authStrategy: new LocalAuth({
     dataPath: process.env.SESSION_DIR || "./session", // Lokasi penyimpanan session
   }),
-  puppeteer: { headless: true }, // Run in headless mode
+  puppeteer: { 
+    headless: true,
+    args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-accelerated-2d-canvas',
+        '--no-first-run',
+        '--no-zygote',
+        '--single-process',
+        '--disable-gpu'
+    ]}, // Run in headless mode
 });
 
 // Database sederhana (gunakan object untuk menyimpan data)
