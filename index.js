@@ -1,14 +1,15 @@
 const { Client, LocalAuth } = require("whatsapp-web.js");
 const qrcode = require("qrcode-terminal");
 const express = require("express");
-const app = express();
 require("dotenv").config();
+
+const app = express();
 const port = process.env.PORT || 3000;
 
 // Inisialisasi client WhatsApp
 const client = new Client({
   authStrategy: new LocalAuth({
-    dataPath: process.env.SESSION_DIR || "./session", // Lokasi penyimpanan session
+    dataPath: process.env.SESSION_DIR || "./session",
   }),
   puppeteer: {
     headless: true,
@@ -22,43 +23,71 @@ const client = new Client({
       "--single-process",
       "--disable-gpu",
     ],
-  }, // Run in headless mode
+  },
 });
 
-// Database sederhana (gunakan object untuk menyimpan data)
+// Database sederhana
 const database = {};
-let groupId = null; // Variabel untuk menyimpan ID group
-
-// Variabel untuk menyimpan QR code
 let qrCodeData = null;
+let groupId = null; // Simpan ID grup di sini
 
-// Fungsi untuk membuat header dengan format yang konsisten
-function createHeader(title) {
-  const titleLength = title.length; // Panjang judul
-  const lineLength = titleLength + 14; // Panjang garis disesuaikan dengan panjang judul
-  const line = "=".repeat(lineLength); // Buat garis dengan panjang yang sesuai
-  return `${line}\n>------ ${title} -------<\n${line}`;
+// Daftar quotes acak
+const quotes = [
+  "Hidup adalah perjalanan, bukan tujuan. - Ralph Waldo Emerson",
+  "Jangan menunggu kesempatan, ciptakanlah. - George Bernard Shaw",
+  "Kesuksesan adalah hasil dari persiapan, kerja keras, dan belajar dari kegagalan. - Colin Powell",
+  "Jadilah perubahan yang ingin kamu lihat di dunia. - Mahatma Gandhi",
+  "Mimpi besar dan berani bermimpi. - Walt Disney",
+  "Kegagalan adalah kesempatan untuk memulai lagi dengan lebih cerdas. - Henry Ford",
+  "Jangan pernah menyerah, karena biasanya itu adalah langkah terakhir sebelum sukses. - Thomas Edison",
+  "Kamu tidak perlu melihat seluruh tangga, cukup ambil langkah pertama. - Martin Luther King Jr.",
+  "Hidup ini seperti mengendarai sepeda. Untuk menjaga keseimbangan, kamu harus terus bergerak. - Albert Einstein",
+  "Kesempatan tidak datang dua kali, tapi kesiapan selalu membawa keberuntungan. - Louis Pasteur",
+];
+
+// Fungsi untuk memilih quote acak
+function getRandomQuote() {
+  const randomIndex = Math.floor(Math.random() * quotes.length);
+  return quotes[randomIndex];
 }
 
-// Fungsi untuk menambahkan garis di sebelah kiri pada setiap baris
-function addLeftBorder(content) {
-  const lines = content.split("\n"); // Pisahkan konten menjadi baris-baris
-  let borderedContent = "";
-  lines.forEach((line) => {
-    borderedContent += `| ${line}\n`; // Tambahkan garis di sebelah kiri setiap baris
-  });
-  return borderedContent;
+// Fungsi untuk mengirim pesan ke grup
+async function sendMessageToGroup(message) {
+  if (groupId) {
+    try {
+      const chat = await client.getChatById(groupId);
+      await chat.sendMessage(message);
+      console.log("Pesan berhasil dikirim ke grup:", message);
+    } catch (error) {
+      console.error("Gagal mengirim pesan ke grup:", error);
+    }
+  } else {
+    console.log("ID grup belum diset. Bot belum dimasukkan ke grup.");
+  }
 }
 
-// Fungsi untuk mengecek apakah bot aktif (jam 6:00 - 22:00 WIB)
-function isBotActive() {
+// Fungsi untuk memeriksa waktu dan mengirim pesan
+function checkAndSendMessage() {
   const now = new Date();
-  const utcHours = now.getUTCHours(); // Ambil jam dalam UTC
+  const utcHours = now.getUTCHours();
   let wibHours = utcHours + 7; // Konversi ke WIB (UTC+7)
 
-  // Jika hasilnya lebih dari 24, kurangi 24 untuk mendapatkan waktu yang valid
-  if (wibHours >= 24) {
-    wibHours -= 24;
+  if (wibHours >= 24) wibHours -= 24;
+
+  if (wibHours === 6) {
+    const quote = getRandomQuote();
+    const activeMessage = createResponse(
+      "BOT AKTIF",
+      `🟢 Bot sedang aktif! Jam operasional: 6:00 - 22:00 WIB.\n💬 *Quote Hari Ini:*\n"${quote}"`
+    );
+    sendMessageToGroup(activeMessage);
+  } else if (wibHours === 22) {
+    const quote = getRandomQuote();
+    const inactiveMessage = createResponse(
+      "BOT NON-AKTIF",
+      `🔴 Bot sedang non-aktif. Jam operasional: 6:00 - 22:00 WIB.\n💬 *Quote Hari Ini:*\n"${quote}"`
+    );
+    sendMessageToGroup(inactiveMessage);
   }
 
   console.log(`Waktu UTC: ${utcHours}:${now.getUTCMinutes()}`);
@@ -66,89 +95,29 @@ function isBotActive() {
   return wibHours >= 6 && wibHours < 22; // Aktif dari jam 6:00 sampai 21:59 WIB
 }
 
-// Fungsi untuk mengecek status aktif/non-aktif
-function checkActiveTime() {
-  if (isBotActive()) {
-    console.log("Bot sedang aktif! 🟢");
-  } else {
-    console.log("Bot sedang non-aktif. 🔴");
-  }
-}
-
-// Fungsi untuk mengirim pesan ke group ketika bot aktif/non-aktif
-async function sendGroupStatusMessage() {
-  if (groupId) {
-    const groupChat = await client.getChatById(groupId);
-
-    if (isBotActive()) {
-      const activeMessage = `
-            🌟 *Bot sedang aktif!* 🌟
-            🕒 Jam operasional: 6:00 - 22:00 WIB
-            🤖 Silakan tag bot dengan perintah yang tersedia:
-            - !menu
-            - !info
-            - !get
-            - !list
-            `;
-      groupChat.sendMessage(activeMessage);
-    } else {
-      const inactiveMessage = `
-            🔴 *Bot sedang non-aktif!* 🔴
-            🕒 Bot akan aktif kembali besok jam 6:00 WIB.
-            😊 Terima kasih telah menggunakan layanan bot!
-            `;
-      groupChat.sendMessage(inactiveMessage);
-    }
-  }
-}
-
 // Generate QR code untuk login
 client.on("qr", (qr) => {
   console.log("QR code generated. Silakan scan di browser.");
   qrcode.generate(qr, { small: true });
   qrCodeData = qr;
-  console.log("QR code data:", qrCodeData);
 });
 
 // Ketika sudah terautentikasi
 client.on("ready", () => {
   console.log("Client is ready!");
-  qrCodeData = null; // Reset QR code data
-  checkActiveTime(); // Cek waktu aktif saat bot siap
+  qrCodeData = null;
 });
 
-// Ketika bot dimasukkan ke dalam group
+// Ketika bot dimasukkan ke grup
 client.on("group_join", (notification) => {
-  groupId = notification.chatId; // Simpan ID group
+  groupId = notification.chatId; // Simpan ID grup
   console.log(`Bot dimasukkan ke group dengan ID: ${groupId}`);
 });
 
-// Fungsi untuk menambahkan nested key-value ke database
-function setNestedKey(obj, keys, value) {
-  const key = keys.shift(); // Ambil key pertama
-  if (!keys.length) {
-    obj[key] = value; // Jika tidak ada key lagi, simpan value
-  } else {
-    if (!obj[key]) obj[key] = {}; // Jika key belum ada, buat objek baru
-    setNestedKey(obj[key], keys, value); // Rekursif untuk key berikutnya
-  }
-}
-
-// Fungsi untuk mengambil nested key-value dari database
-function getNestedKey(obj, keys) {
-  const key = keys.shift(); // Ambil key pertama
-  if (!keys.length) {
-    return obj[key]; // Jika tidak ada key lagi, kembalikan value
-  } else {
-    if (!obj[key]) return null; // Jika key tidak ditemukan, kembalikan null
-    return getNestedKey(obj[key], keys); // Rekursif untuk key berikutnya
-  }
-}
-
 // Ketika menerima pesan
 client.on("message", async (msg) => {
-  const chat = await msg.getChat(); // Ambil info chat
-  const mentionedIds = await msg.getMentions(); // Ambil daftar nomor yang ditag
+  const chat = await msg.getChat();
+  const mentionedIds = await msg.getMentions();
 
   // Cek apakah pesan ditujukan ke bot (ditag)
   const isBotMentioned = mentionedIds.some(
@@ -156,241 +125,325 @@ client.on("message", async (msg) => {
   );
 
   if (isBotMentioned) {
-    const body = msg.body.replace(`@${client.info.wid.user}`, "").trim(); // Hapus tag dari pesan
+    const body = msg.body.replace(`@${client.info.wid.user}`, "").trim();
 
     // Cek jika pesan diawali dengan tanda seru (!)
     if (body.startsWith("!")) {
-      // Cek apakah bot sedang aktif
-      if (isBotActive()) {
-        const command = body.split(" ")[0]; // Ambil perintah (contoh: !menu, !set)
-        const args = body.split(" ").slice(1).join(" "); // Ambil argumen setelah perintah
-        const senderNumber = msg.from.split("@")[0]; // Ambil nomor HP pengirim
+      if (checkAndSendMessage()) {
+        const command = body.split(" ")[0];
+        const args = body.split(" ").slice(1).join(" ");
+        const senderNumber = msg.from.split("@")[0];
 
         // Tambahkan detail "Hai (nomor HP yang mengirim perintah)" di awal
-        const greeting = `Hai @${senderNumber} 👋\n`;
+        const greeting = `🌷🌞 ｡･ﾟﾟ･ 𝗛𝗮𝗶 @${senderNumber}, 𝗦𝗲𝗹𝗮𝗺𝗮𝘁 𝗣𝗮𝗴𝗶! ･ﾟﾟ･｡ 🌷🌞\n`;
 
         switch (command) {
-          case "!menu":
-            const menuHeader = createHeader("Menu");
-            const menuContent = `
-🌟 *Daftar Perintah :* 🌟
-📌 *!info* - Info tentang bot
-📌 *!get* - Ambil data berdasarkan key
-📌 *!list* - Tampilkan daftar key yang tersimpan
-`;
-            msg.reply(
-              addLeftBorder(`${greeting}${menuHeader}\n${menuContent}`)
-            );
-            break;
-
-          case "!info":
-            const infoHeader = createHeader("Info");
-            const infoContent = `🤖 Ini adalah bot WhatsApp sederhana. ✨\n🕒 Jam operasional: 6:00 - 22:00 WIB`;
-            msg.reply(
-              addLeftBorder(`${greeting}${infoHeader}\n${infoContent}`)
-            );
-            break;
-
           case "!set":
-            const setHeader = createHeader("Set");
-            // Cek apakah pesan ini adalah reply
             if (msg.hasQuotedMsg) {
-              const quotedMsg = await msg.getQuotedMessage(); // Ambil pesan yang di-reply
-              const keys = args.split(" in "); // Pisahkan key2 dan key1
-              if (keys.length === 2) {
-                const key2 = keys[0].trim(); // Ambil key2
-                const key1 = keys[1].trim(); // Ambil key1
-                const value = quotedMsg.body; // Ambil value dari pesan yang di-reply
+              const quotedMsg = await msg.getQuotedMessage();
+              const value = quotedMsg.body;
+              const keys = args.split(" in ");
 
-                // Simpan data ke database
-                if (!database[key1]) database[key1] = {}; // Jika key1 belum ada, buat objek baru
-                database[key1][key2] = value; // Simpan key2 dan value di dalam key1
-                const setContent = `✅ *Data berhasil disimpan!*\n🔑 *${key2}* di dalam *${key1}* = *${value}* 🎉`;
+              if (keys.length === 1) {
+                const key1 = keys[0].trim();
+                database[key1] = value;
                 msg.reply(
-                  addLeftBorder(`${greeting}${setHeader}\n${setContent}`)
+                  `${greeting}${createResponse(
+                    "SET",
+                    `🔑 *${key1}* = *${value}* 🎉`
+                  )}`
+                );
+              } else if (keys.length === 2) {
+                const key2 = keys[0].trim();
+                const key1 = keys[1].trim();
+                if (!database[key1]) database[key1] = {};
+                database[key1][key2] = value;
+                msg.reply(
+                  `${greeting}${createResponse(
+                    "SET",
+                    `🔑 *${key2}* di dalam *${key1}* = *${value}* 🎉`
+                  )}`
                 );
               } else {
-                const setContent = `❌ *Format salah!* Gunakan: \`!set key2 in key1\` dan reply pesan untuk value. 😊`;
                 msg.reply(
-                  addLeftBorder(`${greeting}${setHeader}\n${setContent}`)
+                  `${greeting}${createResponse(
+                    "SET",
+                    "❌ *Format salah!* Gunakan: `!set key` atau `!set key2 in key1` dan reply pesan untuk value. 😊",
+                    true
+                  )}`
                 );
               }
             } else {
-              const setContent = `❌ *Silakan reply pesan untuk menyimpan value.* 😊`;
               msg.reply(
-                addLeftBorder(`${greeting}${setHeader}\n${setContent}`)
+                `${greeting}${createResponse(
+                  "SET",
+                  "❌ *Silakan reply pesan untuk menyimpan value.* 😊",
+                  true
+                )}`
               );
             }
             break;
 
           case "!edit":
-            const editHeader = createHeader("Edit");
-            // Cek apakah pesan ini adalah reply
             if (msg.hasQuotedMsg) {
-              const quotedMsg = await msg.getQuotedMessage(); // Ambil pesan yang di-reply
-              const keys = args.split(" from "); // Pisahkan key2 dan key1
-              if (keys.length === 2) {
-                const key2 = keys[0].trim(); // Ambil key2
-                const key1 = keys[1].trim(); // Ambil key1
-                const value = quotedMsg.body; // Ambil value dari pesan yang di-reply
+              const quotedMsg = await msg.getQuotedMessage();
+              const value = quotedMsg.body;
+              const keys = args.split(" from ");
 
-                // Cek apakah key1 dan key2 ada di database
-                if (database[key1] && database[key1][key2]) {
-                  database[key1][key2] = value; // Edit value dari key2 di dalam key1
-                  const editContent = `✅ *Data berhasil diubah!*\n🔑 *${key2}* di dalam *${key1}* = *${value}* 🎉`;
+              if (keys.length === 1) {
+                const key1 = keys[0].trim();
+                if (database[key1] && typeof database[key1] !== "object") {
+                  database[key1] = value;
                   msg.reply(
-                    addLeftBorder(`${greeting}${editHeader}\n${editContent}`)
+                    `${greeting}${createResponse(
+                      "EDIT",
+                      `🔑 *${key1}* = *${value}* 🎉`
+                    )}`
                   );
                 } else {
-                  const editContent = `❌ *Key "${key2}" tidak ditemukan di dalam "${key1}".* 😅`;
                   msg.reply(
-                    addLeftBorder(`${greeting}${editHeader}\n${editContent}`)
+                    `${greeting}${createResponse(
+                      "EDIT",
+                      `❌ *Key "${key1}" tidak ditemukan atau memiliki nested key.* 😅`,
+                      true
+                    )}`
+                  );
+                }
+              } else if (keys.length === 2) {
+                const key2 = keys[0].trim();
+                const key1 = keys[1].trim();
+                if (database[key1] && database[key1][key2]) {
+                  database[key1][key2] = value;
+                  msg.reply(
+                    `${greeting}${createResponse(
+                      "EDIT",
+                      `🔑 *${key2}* di dalam *${key1}* = *${value}* 🎉`
+                    )}`
+                  );
+                } else {
+                  msg.reply(
+                    `${greeting}${createResponse(
+                      "EDIT",
+                      `❌ *Key "${key2}" tidak ditemukan di dalam "${key1}".* 😅`,
+                      true
+                    )}`
                   );
                 }
               } else {
-                const editContent = `❌ *Format salah!* Gunakan: \`!edit key2 from key1\` dan reply pesan untuk value. 😊`;
                 msg.reply(
-                  addLeftBorder(`${greeting}${editHeader}\n${editContent}`)
+                  `${greeting}${createResponse(
+                    "EDIT",
+                    "❌ *Format salah!* Gunakan: `!edit key1` atau `!edit key2 from key1` dan reply pesan untuk value. 😊",
+                    true
+                  )}`
                 );
               }
             } else {
-              const editContent = `❌ *Silakan reply pesan untuk mengedit value.* 😊`;
               msg.reply(
-                addLeftBorder(`${greeting}${editHeader}\n${editContent}`)
+                `${greeting}${createResponse(
+                  "EDIT",
+                  "❌ *Silakan reply pesan untuk mengedit value.* 😊",
+                  true
+                )}`
               );
             }
             break;
 
           case "!delete":
-            const deleteHeader = createHeader("Delete");
-            const keys = args.split(" from "); // Pisahkan key2 dan key1
-            if (keys.length === 2) {
-              const key2 = keys[0].trim(); // Ambil key2
-              const key1 = keys[1].trim(); // Ambil key1
-
-              // Cek apakah key1 dan key2 ada di database
-              if (database[key1] && database[key1][key2]) {
-                delete database[key1][key2]; // Hapus key2 dari key1
-                const deleteContent = `🗑️ *Key "${key2}" berhasil dihapus dari "${key1}".* ✨`;
-                msg.reply(
-                  addLeftBorder(`${greeting}${deleteHeader}\n${deleteContent}`)
-                );
-              } else {
-                const deleteContent = `❌ *Key "${key2}" tidak ditemukan di dalam "${key1}".* 😅`;
-                msg.reply(
-                  addLeftBorder(`${greeting}${deleteHeader}\n${deleteContent}`)
-                );
-              }
-            } else {
-              const deleteContent = `❌ *Format salah!* Gunakan: \`!delete key2 from key1\`. 😊`;
+            if (args === "all") {
+              Object.keys(database).forEach((key) => delete database[key]);
               msg.reply(
-                addLeftBorder(`${greeting}${deleteHeader}\n${deleteContent}`)
+                `${greeting}${createResponse(
+                  "DELETE ALL",
+                  "🗑️ *Semua data berhasil dihapus!* ✨"
+                )}`
               );
-            }
-            break;
-
-          case "!get":
-            const getArgs = args.split(" from "); // Pisahkan key2 dan key1
-            const key = getArgs[0].trim(); // Ambil key yang diminta (bisa key1 atau key2)
-            const parentKey = getArgs[1] ? getArgs[1].trim() : null; // Ambil parent key (key1)
-
-            const getHeader = createHeader(key); // Judul diubah sesuai dengan key yang diminta
-
-            if (parentKey) {
-              // Jika ada parent key (contoh: !get key2 from key1)
-              if (database[parentKey] && database[parentKey][key]) {
-                const value = database[parentKey][key];
-                const getContent = `🔑 *${key}* = *${value}*`;
-                msg.reply(
-                  addLeftBorder(`${greeting}${getHeader}\n${getContent}`)
-                );
-              } else {
-                const notFoundContent = `❌ *Key "${key}" tidak ditemukan di dalam "${parentKey}".* 😅`;
-                msg.reply(
-                  addLeftBorder(`${greeting}${getHeader}\n${notFoundContent}`)
-                );
-              }
             } else {
-              // Jika tidak ada parent key (contoh: !get key1)
-              if (database[key]) {
-                if (typeof database[key] === "object") {
-                  // Jika key ada di database dan merupakan objek (ada nested key)
-                  let listMessage = "📜 *Daftar List :*\n";
-                  for (const nestedKey in database[key]) {
-                    listMessage += `🔑 *${nestedKey}*\n`; // Hanya tampilkan nested key, tidak tampilkan value
-                  }
+              const keys = args.split(" from ");
+              if (keys.length === 1) {
+                const key1 = keys[0].trim();
+                if (database[key1]) {
+                  delete database[key1];
                   msg.reply(
-                    addLeftBorder(`${greeting}${getHeader}\n${listMessage}`)
+                    `${greeting}${createResponse(
+                      "DELETE",
+                      `🗑️ *Key "${key1}" dan semua nested key-nya berhasil dihapus!* ✨`
+                    )}`
                   );
                 } else {
-                  // Jika key ada di database dan merupakan value langsung
-                  const getContent = `🔑 *${key}* = *${database[key]}*`;
                   msg.reply(
-                    addLeftBorder(`${greeting}${getHeader}\n${getContent}`)
+                    `${greeting}${createResponse(
+                      "DELETE",
+                      `❌ *Key "${key1}" tidak ditemukan.* 😅`,
+                      true
+                    )}`
+                  );
+                }
+              } else if (keys.length === 2) {
+                const key2 = keys[0].trim();
+                const key1 = keys[1].trim();
+                if (database[key1] && database[key1][key2]) {
+                  delete database[key1][key2];
+                  msg.reply(
+                    `${greeting}${createResponse(
+                      "DELETE",
+                      `🗑️ *Key "${key2}" berhasil dihapus dari "${key1}".* ✨`
+                    )}`
+                  );
+                } else {
+                  msg.reply(
+                    `${greeting}${createResponse(
+                      "DELETE",
+                      `❌ *Key "${key2}" tidak ditemukan di dalam "${key1}".* 😅`,
+                      true
+                    )}`
                   );
                 }
               } else {
-                // Jika key tidak ditemukan
-                const notFoundContent = `❌ *Key "${key}" tidak ditemukan.* 😅`;
                 msg.reply(
-                  addLeftBorder(`${greeting}${getHeader}\n${notFoundContent}`)
+                  `${greeting}${createResponse(
+                    "DELETE",
+                    "❌ *Format salah!* Gunakan: `!delete key1`, `!delete key2 from key1`, atau `!delete all`. 😊",
+                    true
+                  )}`
+                );
+              }
+            }
+            break;
+
+          case "!menu":
+            const menuContent = createResponse(
+              "MENU",
+              `📌 *!info* - Info tentang bot\n📌 *!get* - Ambil data berdasarkan key\n📌 *!list* - Tampilkan daftar key yang tersimpan`
+            );
+            msg.reply(`${greeting}${menuContent}`);
+            break;
+
+          case "!info":
+            const infoContent = createResponse(
+              "INFO",
+              `🤖 Hai perkenalkan aku adalah JustBot yang dirancang untuk kebutuhan MPK OSIS.\n` +
+                `Aku berfungsi untuk menyimpan segala keperluan mulai dari jobdesk setiap event, catatan hasil eval, dan lain-lain.\n` +
+                `Kalian bisa ketik \`!menu\` untuk melihat detailnya.\n` +
+                `Jam kerja bot sudah diatur mulai dari jam 6.00 sampai 10.00 WIB.\n` +
+                `Selamat mencoba! ✨`
+            );
+            msg.reply(`${greeting}${infoContent}`);
+            break;
+
+          case "!get":
+            const getArgs = args.split(" from ");
+            const key = getArgs[0].trim();
+            const parentKey = getArgs[1] ? getArgs[1].trim() : null;
+
+            if (parentKey) {
+              if (database[parentKey] && database[parentKey][key]) {
+                const value = database[parentKey][key];
+                msg.reply(
+                  `${greeting}${createResponse(
+                    "GET",
+                    `🔑 *${key}* = *${value}*`
+                  )}`
+                );
+              } else {
+                msg.reply(
+                  `${greeting}${createResponse(
+                    "GET",
+                    `❌ *Key "${key}" tidak ditemukan di dalam "${parentKey}".* 😅`,
+                    true
+                  )}`
+                );
+              }
+            } else {
+              if (database[key]) {
+                if (typeof database[key] === "object") {
+                  let listMessage = `📜 *Daftar List :*\n`;
+                  for (const nestedKey in database[key]) {
+                    listMessage += `│ 🔑 *${nestedKey}*\n`;
+                  }
+                  msg.reply(`${greeting}${createResponse("GET", listMessage)}`);
+                } else {
+                  msg.reply(
+                    `${greeting}${createResponse(
+                      "GET",
+                      `🔑 *${key}* = *${database[key]}*`
+                    )}`
+                  );
+                }
+              } else {
+                msg.reply(
+                  `${greeting}${createResponse(
+                    "GET",
+                    `❌ *Key "${key}" tidak ditemukan.* 😅`,
+                    true
+                  )}`
                 );
               }
             }
             break;
 
           case "!list":
-            const listHeader = createHeader("List");
             if (Object.keys(database).length > 0) {
-              // Gambar kucing lucu ASCII
-              const catArt = `
-🌟 *Selamat datang di* 🌟
-/\\_/\\
-( o.o )  🐱
-> ^ <   ✨
-`;
-
-              // Daftar key dengan dekorasi
-              let listMessage = "📜 *Daftar List :*\n";
+              let listMessage = `📜 *Daftar List :*\n`;
               for (const key in database) {
-                listMessage += `🔑 *${key}*\n`; // Hanya tampilkan key utama, tidak tampilkan nested key atau value
+                listMessage += `│ 🔑 *${key}*\n`;
               }
-
-              // Footer dengan dekorasi
-              const footer = "✨ > dibuat oleh Justdhif ✨";
-
-              // Gabungkan semua pesan
-              const fullMessage = `${greeting}${listHeader}\n${catArt}\n${listMessage}\n${footer}`;
-              msg.reply(addLeftBorder(fullMessage));
+              msg.reply(`${greeting}${createResponse("LIST", listMessage)}`);
             } else {
-              const listContent = `❌ *Tidak ada data yang tersimpan.* 😅`;
               msg.reply(
-                addLeftBorder(`${greeting}${listHeader}\n${listContent}`)
+                `${greeting}${createResponse(
+                  "LIST",
+                  "❌ *Tidak ada data yang tersimpan.* 😅",
+                  true
+                )}`
               );
             }
             break;
 
           default:
-            // Respon biasa untuk perintah selain !get, !info, !menu, dan !list
-            const defaultContent = `❌ *Maaf, aku tidak mengerti.* 😅 Coba ketik \`!menu\` untuk bantuan ya! 🫶`;
-            msg.reply(defaultContent);
+            msg.reply(
+              `${greeting}${createResponse(
+                "DEFAULT",
+                "❌ *Maaf, aku tidak mengerti.* 😅 Coba ketik `!menu` untuk bantuan ya! 🫶",
+                true
+              )}`
+            );
             break;
         }
       } else {
-        // Bot sedang non-aktif
-        const inactiveContent = `🔴 *Maaf, bot hanya aktif dari jam 6:00 sampai 22:00 WIB.* Silakan coba lagi nanti! 😊`;
-        msg.reply(inactiveContent);
+        const senderNumber = msg.from.split("@")[0];
+        const greeting = `🌷🌞 ｡･ﾟﾟ･ 𝗛𝗮𝗶 @${senderNumber}, 𝗦𝗲𝗹𝗮𝗺𝗮𝘁 𝗣𝗮𝗴𝗶! ･ﾟﾟ･｡ 🌷🌞\n`;
+        msg.reply(
+          `${greeting}${createResponse(
+            "INACTIVE",
+            "🔴 *Maaf, bot hanya aktif dari jam 6:00 sampai 22:00 WIB.* Silakan coba lagi nanti! 😊",
+            true
+          )}`
+        );
       }
     }
   }
 });
 
+function createResponse(title, content, isError = false) {
+  const lines = content.split("\n");
+  const formattedContent = lines.map((line) => `│ ${line}`).join("\n");
+
+  return `
+╭────────────────🍂
+│ 🔑 *${title}*
+├──────── 🌸 ────────╮
+${formattedContent}
+├──────── 🍃 ────────╯
+│ 🎀💖 𝗧𝗲𝗿𝗶𝗺𝗮 𝗞𝗮𝘀𝗶𝗵 𝘀𝘂𝗱𝗮𝗵 𝗺𝗲𝗻𝗴𝗴𝘂𝗻𝗮𝗸𝗮𝗻 𝗹𝗮𝘆𝗮𝗻𝗮𝗻 𝗶𝗻𝗶! 💖🎀
+█▀▀▀▀▀▀▀▀▀▀▀▀▀█
+`;
+}
+
 // Buat server web untuk menampilkan QR code
 app.get("/", (req, res) => {
   if (!client.info) {
-    // Jika client belum terautentikasi, tampilkan QR code
     if (qrCodeData) {
-      console.log("Mengirim QR code ke browser:", qrCodeData);
       res.send(`
         <h1>Scan QR Code untuk Login</h1>
         <img src="https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(
@@ -399,14 +452,12 @@ app.get("/", (req, res) => {
         <p>Silakan buka WhatsApp di ponsel Anda, pilih "Linked Devices", dan scan QR code di atas.</p>
       `);
     } else {
-      console.log("Menunggu QR code...");
       res.send(`
         <h1>Menunggu QR code...</h1>
         <p>Silakan tunggu sebentar, QR code akan segera muncul.</p>
       `);
     }
   } else {
-    // Jika client sudah terautentikasi, tampilkan pesan
     res.send(`
       <h1>Bot sudah terautentikasi!</h1>
       <p>Tidak perlu scan QR code lagi. Bot sedang berjalan.</p>
@@ -422,8 +473,5 @@ app.listen(port, () => {
 // Start client
 client.initialize();
 
-// Cek waktu aktif setiap menit dan kirim pesan ke group
-setInterval(async () => {
-  checkActiveTime();
-  await sendGroupStatusMessage();
-}, 60000); // 60000 ms = 1 menit
+// Jadwalkan pengecekan setiap menit
+setInterval(checkAndSendMessage, 60000); // 60000 ms = 1 menit
