@@ -165,14 +165,19 @@ client.on("message", async (msg) => {
     if (body.startsWith("!")) {
       // Cek apakah bot sedang aktif
       if (isBotActive()) {
-        const command = body.split(" ")[0]; // Ambil perintah (contoh: !hai, !set)
+        const command = body.split(" ")[0]; // Ambil perintah (contoh: !menu, !set)
         const args = body.split(" ").slice(1).join(" "); // Ambil argumen setelah perintah
 
         switch (command) {
-          case "!hai":
-            const haiHeader = createHeader("Hai");
-            const haiContent = `🌟 Halo! Ada yang bisa saya bantu? 😊`;
-            msg.reply(addLeftBorder(`${haiHeader}\n${haiContent}`));
+          case "!menu":
+            const menuHeader = createHeader("Menu");
+            const menuContent = `
+🌟 *Daftar Perintah :* 🌟
+📌 *!info* - Info tentang bot
+📌 *!get* - Ambil data berdasarkan key
+📌 *!list* - Tampilkan daftar key yang tersimpan
+`;
+            msg.reply(addLeftBorder(`${menuHeader}\n${menuContent}`));
             break;
 
           case "!info":
@@ -200,43 +205,43 @@ client.on("message", async (msg) => {
             break;
 
           case "!get":
-            const getHeader = createHeader("Get");
-            const keys = args.split("/"); // Pisahkan key1/key2
-            const value = getNestedKey(database, [...keys]); // Ambil value dari database
+            const key = args.trim(); // Ambil key yang diminta (bisa key1 atau key2)
+            const getHeader = createHeader(key); // Judul diubah sesuai dengan key yang diminta
 
-            if (value) {
-              if (typeof value === "object") {
-                // Jika value adalah objek (ada nested key)
+            // Cek apakah key ada di database
+            if (database[key]) {
+              // Jika key ada di database dan merupakan objek (ada nested key)
+              if (typeof database[key] === "object") {
                 let listMessage = "📜 *Daftar List :*\n";
-                for (const key in value) {
-                  listMessage += `🔑 *${key}* = *${value[key]}*\n`;
+                for (const nestedKey in database[key]) {
+                  listMessage += `🔑 *${nestedKey}*\n`; // Hanya tampilkan nested key, tidak tampilkan value
                 }
                 msg.reply(addLeftBorder(`${getHeader}\n${listMessage}`));
               } else {
-                // Jika value adalah string
-                const getContent = `🔑 *${args}* = *${value}*`;
+                // Jika key ada di database dan merupakan value langsung
+                const getContent = `🔑 *${key}* = *${database[key]}*`;
                 msg.reply(addLeftBorder(`${getHeader}\n${getContent}`));
               }
             } else {
-              const notFoundContent = `❌ *Key ${args} tidak ditemukan.* 😅`;
-              msg.reply(addLeftBorder(`${getHeader}\n${notFoundContent}`));
-            }
-            break;
+              // Cek apakah key adalah nested key di dalam key1
+              let foundValue = null;
+              for (const mainKey in database) {
+                if (database[mainKey] && database[mainKey][key]) {
+                  foundValue = database[mainKey][key];
+                  break;
+                }
+              }
 
-          case "!delete":
-            const deleteHeader = createHeader("Delete");
-            const keysToDelete = args.split("/"); // Pisahkan key1/key2
-            const parentKey = keysToDelete.slice(0, -1); // Ambil parent key
-            const lastKey = keysToDelete[keysToDelete.length - 1]; // Ambil key terakhir
-
-            const parentObj = getNestedKey(database, [...parentKey]);
-            if (parentObj && parentObj[lastKey]) {
-              delete parentObj[lastKey]; // Hapus key terakhir
-              const deleteContent = `🗑️ *Key ${args} berhasil dihapus!* ✨`;
-              msg.reply(addLeftBorder(`${deleteHeader}\n${deleteContent}`));
-            } else {
-              const deleteContent = `❌ *Key ${args} tidak ditemukan.* 😅`;
-              msg.reply(addLeftBorder(`${deleteHeader}\n${deleteContent}`));
+              if (foundValue) {
+                // Jika key adalah nested key di dalam key1
+                const newKey = foundValue.split(" ").slice(0, 5).join(" "); // Ambil 5 kata pertama sebagai key baru
+                const getContent = `🔑 *${key}* = *${newKey}*`;
+                msg.reply(addLeftBorder(`${getHeader}\n${getContent}`));
+              } else {
+                // Jika key tidak ditemukan
+                const notFoundContent = `❌ *Key "${key}" tidak ditemukan.* 😅`;
+                msg.reply(addLeftBorder(`${getHeader}\n${notFoundContent}`));
+              }
             }
             break;
 
@@ -254,24 +259,24 @@ client.on("message", async (msg) => {
               // Daftar key dengan dekorasi
               let listMessage = "📜 *Daftar List :*\n";
               for (const key in database) {
-                listMessage += `🔑 *${key}* = *${JSON.stringify(database[key])}*\n`;
+                listMessage += `🔑 *${key}*\n`; // Hanya tampilkan key utama, tidak tampilkan nested key atau value
               }
 
               // Footer dengan dekorasi
-              const footer = "✨ > dibuat oleh nadhif ✨";
+              const footer = "✨ > dibuat oleh Justdhif ✨";
 
               // Gabungkan semua pesan
               const fullMessage = `${listHeader}\n${catArt}\n${listMessage}\n${footer}`;
               msg.reply(addLeftBorder(fullMessage));
             } else {
-              const listContent = `❌ *Tidak ada data yang tersimpan.* 😅`;
+              const listContent = `❌ *Tidak ada data yang tersimpan.*`;
               msg.reply(addLeftBorder(`${listHeader}\n${listContent}`));
             }
             break;
 
           default:
             const defaultHeader = createHeader("Maaf");
-            const defaultContent = `❌ *Maaf, aku tidak mengerti.* 😅 Coba ketik \`!info\` untuk bantuan ya! 🫶`;
+            const defaultContent = `❌ *Maaf, aku tidak mengerti.* 😅 Coba ketik \`!menu\` untuk bantuan ya! 🫶`;
             msg.reply(addLeftBorder(`${defaultHeader}\n${defaultContent}`));
             break;
         }
