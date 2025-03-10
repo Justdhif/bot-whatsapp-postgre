@@ -1,10 +1,13 @@
-const { Client, LocalAuth } = require("whatsapp-web.js");
+const { Client, LocalAuth, MessageMedia } = require("whatsapp-web.js");
 const qrcode = require("qrcode-terminal");
 const express = require("express");
-require("dotenv").config();
+const XLSX = require("xlsx");
+const path = require("path");
 
 const app = express();
 const port = process.env.PORT || 3000;
+
+require("dotenv").config();
 
 // Inisialisasi client WhatsApp
 const client = new Client({
@@ -51,6 +54,103 @@ function getRandomQuote() {
   return quotes[randomIndex];
 }
 
+// Database untuk keuangan
+const financeDB = {
+  income: [],
+  expenses: [],
+};
+
+// Fungsi untuk menambahkan pemasukan
+function addIncome(amount, description) {
+  financeDB.income.push({ amount, description, date: new Date() });
+}
+
+// Fungsi untuk menambahkan pengeluaran
+function addExpense(amount, description) {
+  financeDB.expenses.push({ amount, description, date: new Date() });
+}
+
+// Fungsi untuk menghitung saldo
+function calculateBalance() {
+  const totalIncome = financeDB.income.reduce(
+    (sum, item) => sum + item.amount,
+    0
+  );
+  const totalExpenses = financeDB.expenses.reduce(
+    (sum, item) => sum + item.amount,
+    0
+  );
+  return totalIncome - totalExpenses;
+}
+
+// Fungsi untuk membuat file Excel
+function createExcelFile() {
+  const workbook = XLSX.utils.book_new();
+
+  // Sheet Income
+  const incomeSheet = XLSX.utils.json_to_sheet(financeDB.income);
+  XLSX.utils.book_append_sheet(workbook, incomeSheet, "Income");
+
+  // Sheet Expenses
+  const expensesSheet = XLSX.utils.json_to_sheet(financeDB.expenses);
+  XLSX.utils.book_append_sheet(workbook, expensesSheet, "Expenses");
+
+  // Simpan file Excel
+  const filePath = path.join(__dirname, "finance_report.xlsx");
+  XLSX.writeFile(workbook, filePath);
+
+  return filePath;
+}
+
+// Fungsi untuk membuat laporan keuangan
+function createFinanceReport() {
+  const totalIncome = financeDB.income.reduce(
+    (sum, item) => sum + item.amount,
+    0
+  );
+  const totalExpenses = financeDB.expenses.reduce(
+    (sum, item) => sum + item.amount,
+    0
+  );
+  const balance = totalIncome - totalExpenses;
+
+  const incomeDetails = financeDB.income
+    .map(
+      (item) =>
+        `│ 💵 *${item.amount}* - ${
+          item.description
+        } (${item.date.toLocaleDateString()})`
+    )
+    .join("\n");
+
+  const expenseDetails = financeDB.expenses
+    .map(
+      (item) =>
+        `│ 💸 *${item.amount}* - ${
+          item.description
+        } (${item.date.toLocaleDateString()})`
+    )
+    .join("\n");
+
+  const report = `
+╭────────────────🍂
+│ 🔑 *LAPORAN KEUANGAN*
+├──────── 🌸 ────────╮
+│ 📊 *Total Pemasukan:* ${totalIncome}
+${incomeDetails}
+│
+│ 📊 *Total Pengeluaran:* ${totalExpenses}
+${expenseDetails}
+│
+│ 💰 *Saldo Saat Ini:* ${balance}
+├──────── 🍃 ────────╯
+│ 🎀💖 𝗧𝗲𝗿𝗶𝗺𝗮 𝗞𝗮𝘀𝗶𝗵 𝘀𝘂𝗱𝗮𝗵 𝗺𝗲𝗻𝗴𝗴𝘂𝗻𝗮𝗸𝗮𝗻 𝗹𝗮𝘆𝗮𝗻𝗮𝗻 𝗶𝗻𝗶! 💖🎀
+█▀▀▀▀▀▀▀▀▀▀▀▀▀█
+`;
+
+  return report;
+}
+
 // Fungsi untuk mengirim pesan ke grup
 async function sendMessageToGroup(message) {
   if (groupId) {
@@ -66,6 +166,10 @@ async function sendMessageToGroup(message) {
   }
 }
 
+// Variabel untuk menandai apakah pesan aktif/non-aktif sudah dikirim
+let activeMessageSent = false;
+let inactiveMessageSent = false;
+
 // Fungsi untuk memeriksa waktu dan mengirim pesan
 function checkAndSendMessage() {
   const now = new Date();
@@ -74,25 +178,52 @@ function checkAndSendMessage() {
 
   if (wibHours >= 24) wibHours -= 24;
 
-  if (wibHours === 6) {
+  if (wibHours === 6 && !activeMessageSent) {
     const quote = getRandomQuote();
     const activeMessage = createResponse(
       "BOT AKTIF",
       `🟢 Bot sedang aktif! Jam operasional: 6:00 - 22:00 WIB.\n💬 *Quote Hari Ini:*\n"${quote}"`
     );
     sendMessageToGroup(activeMessage);
-  } else if (wibHours === 22) {
+    activeMessageSent = true;
+    inactiveMessageSent = false; // Reset status pesan non-aktif
+  } else if (wibHours === 22 && !inactiveMessageSent) {
     const quote = getRandomQuote();
     const inactiveMessage = createResponse(
       "BOT NON-AKTIF",
       `🔴 Bot sedang non-aktif. Jam operasional: 6:00 - 22:00 WIB.\n💬 *Quote Hari Ini:*\n"${quote}"`
     );
     sendMessageToGroup(inactiveMessage);
+    inactiveMessageSent = true;
+    activeMessageSent = false; // Reset status pesan aktif
   }
 
   console.log(`Waktu UTC: ${utcHours}:${now.getUTCMinutes()}`);
   console.log(`Waktu WIB: ${wibHours}:${now.getUTCMinutes()}`);
   return wibHours >= 6 && wibHours < 22; // Aktif dari jam 6:00 sampai 21:59 WIB
+}
+
+// Fungsi untuk mendapatkan greeting berdasarkan waktu
+function getGreeting(senderNumber) {
+  const now = new Date();
+  const utcHours = now.getUTCHours();
+  let wibHours = utcHours + 7; // Konversi ke WIB (UTC+7)
+
+  if (wibHours >= 24) wibHours -= 24;
+
+  let greeting = "";
+
+  if (wibHours >= 6 && wibHours < 11) {
+    greeting = `🌷🌞 ｡･ﾟﾟ･ 𝗛𝗮𝗶 @${senderNumber}, 𝗦𝗲𝗹𝗮𝗺𝗮𝘁 𝗣𝗮𝗴𝗶! ･ﾟﾟ･｡ 🌷🌞\n`;
+  } else if (wibHours >= 11 && wibHours < 15) {
+    greeting = `🌷🌞 ｡･ﾟﾟ･ 𝗛𝗮𝗶 @${senderNumber}, 𝗦𝗲𝗹𝗮𝗺𝗮𝘁 𝗦𝗶𝗮𝗻𝗴! ･ﾟﾟ･｡ 🌷🌞\n`;
+  } else if (wibHours >= 15 && wibHours < 19) {
+    greeting = `🌷🌞 ｡･ﾟﾟ･ 𝗛𝗮𝗶 @${senderNumber}, 𝗦𝗲𝗹𝗮𝗺𝗮𝘁 𝗦𝗼𝗿𝗲! ･ﾟﾟ･｡ 🌷🌞\n`;
+  } else {
+    greeting = `🌷🌞 ｡･ﾟﾟ･ 𝗛𝗮𝗶 @${senderNumber}, 𝗦𝗲𝗹𝗮𝗺𝗮𝘁 𝗠𝗮𝗹𝗮𝗺! ･ﾟﾟ･｡ 🌷🌞\n`;
+  }
+
+  return greeting;
 }
 
 // Generate QR code untuk login
@@ -124,7 +255,7 @@ client.on("message", async (msg) => {
     (mention) => mention.id._serialized === client.info.wid._serialized
   );
 
-  if (isBotMentioned) {
+  if (isBotMentioned || !chat.isGroup) {
     const body = msg.body.replace(`@${client.info.wid.user}`, "").trim();
 
     // Cek jika pesan diawali dengan tanda seru (!)
@@ -134,8 +265,8 @@ client.on("message", async (msg) => {
         const args = body.split(" ").slice(1).join(" ");
         const senderNumber = msg.from.split("@")[0];
 
-        // Tambahkan detail "Hai (nomor HP yang mengirim perintah)" di awal
-        const greeting = `🌷🌞 ｡･ﾟﾟ･ 𝗛𝗮𝗶 @${senderNumber}, 𝗦𝗲𝗹𝗮𝗺𝗮𝘁 𝗣𝗮𝗴𝗶! ･ﾟﾟ･｡ 🌷🌞\n`;
+        // Tambahkan greeting berdasarkan waktu
+        const greeting = getGreeting(senderNumber);
 
         switch (command) {
           case "!set":
@@ -314,7 +445,7 @@ client.on("message", async (msg) => {
           case "!menu":
             const menuContent = createResponse(
               "MENU",
-              `📌 *!info* - Info tentang bot\n📌 *!get* - Ambil data berdasarkan key\n📌 *!list* - Tampilkan daftar key yang tersimpan`
+              `📌 \`*!info*\` - Info bot\n\n📌 \`*!get <key>*\` - Ambil data key\n\n📌 \`*!list*\` - Daftar key\n\n📌 \`*!balance*\` - Lihat saldo`
             );
             msg.reply(`${greeting}${menuContent}`);
             break;
@@ -400,6 +531,96 @@ client.on("message", async (msg) => {
             }
             break;
 
+          case "!balance":
+            if (chat.isGroup) {
+              const balance = calculateBalance();
+              msg.reply(`${greeting}💰 Saldo saat ini: *${balance}*`);
+            } else {
+              const balanceReport = createFinanceReport();
+              msg.reply(`${greeting}${balanceReport}`);
+            }
+            break;
+
+          case "!addincome":
+            if (chat.isGroup) {
+              msg.reply(
+                `${greeting}${createResponse(
+                  "ADD INCOME",
+                  "❌ *Perintah ini hanya bisa digunakan di chat pribadi.* 😊",
+                  true
+                )}`
+              );
+            } else {
+              const [incomeAmount, ...incomeDescription] = args.split(" ");
+              if (!incomeAmount || isNaN(incomeAmount)) {
+                msg.reply(
+                  `${greeting}${createResponse(
+                    "ADD INCOME",
+                    "❌ *Format salah!* Gunakan: `!addincome <jumlah> <deskripsi>`. 😊",
+                    true
+                  )}`
+                );
+              } else {
+                addIncome(
+                  parseFloat(incomeAmount),
+                  incomeDescription.join(" ")
+                );
+                msg.reply(
+                  `${greeting}✅ Pemasukan sebesar *${incomeAmount}* telah ditambahkan.`
+                );
+              }
+            }
+            break;
+
+          case "!addexpense":
+            if (chat.isGroup) {
+              msg.reply(
+                `${greeting}${createResponse(
+                  "ADD EXPENSE",
+                  "❌ *Perintah ini hanya bisa digunakan di chat pribadi.* 😊",
+                  true
+                )}`
+              );
+            } else {
+              const [expenseAmount, ...expenseDescription] = args.split(" ");
+              if (!expenseAmount || isNaN(expenseAmount)) {
+                msg.reply(
+                  `${greeting}${createResponse(
+                    "ADD EXPENSE",
+                    "❌ *Format salah!* Gunakan: `!addexpense <jumlah> <deskripsi>`. 😊",
+                    true
+                  )}`
+                );
+              } else {
+                addExpense(
+                  parseFloat(expenseAmount),
+                  expenseDescription.join(" ")
+                );
+                msg.reply(
+                  `${greeting}✅ Pengeluaran sebesar *${expenseAmount}* telah ditambahkan.`
+                );
+              }
+            }
+            break;
+
+          case "!downloadfinance":
+            if (chat.isGroup) {
+              msg.reply(
+                `${greeting}${createResponse(
+                  "DOWNLOAD FINANCE",
+                  "❌ *Perintah ini hanya bisa digunakan di chat pribadi.* 😊",
+                  true
+                )}`
+              );
+            } else {
+              const filePath = createExcelFile();
+              const media = MessageMedia.fromFilePath(filePath);
+              msg.reply(media, null, {
+                caption: `${greeting}📊 Laporan keuangan telah diunduh.`,
+              });
+            }
+            break;
+
           default:
             msg.reply(
               `${greeting}${createResponse(
@@ -412,7 +633,7 @@ client.on("message", async (msg) => {
         }
       } else {
         const senderNumber = msg.from.split("@")[0];
-        const greeting = `🌷🌞 ｡･ﾟﾟ･ 𝗛𝗮𝗶 @${senderNumber}, 𝗦𝗲𝗹𝗮𝗺𝗮𝘁 𝗣𝗮𝗴𝗶! ･ﾟﾟ･｡ 🌷🌞\n`;
+        const greeting = getGreeting(senderNumber);
         msg.reply(
           `${greeting}${createResponse(
             "INACTIVE",
