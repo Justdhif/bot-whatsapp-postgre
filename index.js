@@ -29,10 +29,32 @@ const client = new Client({
   },
 });
 
-// Database sederhana
-const database = {};
 let qrCodeData = null;
 let groupId = null; // Simpan ID grup di sini
+
+// Database sederhana
+const database = {};
+
+// Database untuk keuangan
+const financeDB = {
+  income: [],
+  expenses: [],
+};
+
+// Database untuk admin
+const adminDB = {
+  adminNumber: null,
+  username: null,
+  verificationCode: null,
+};
+
+// Database untuk note
+const noteDB = {};
+
+// Fungsi untuk menghasilkan kode verifikasi acak
+function generateVerificationCode() {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+}
 
 // Daftar quotes acak
 const quotes = [
@@ -53,12 +75,6 @@ function getRandomQuote() {
   const randomIndex = Math.floor(Math.random() * quotes.length);
   return quotes[randomIndex];
 }
-
-// Database untuk keuangan
-const financeDB = {
-  income: [],
-  expenses: [],
-};
 
 // Fungsi untuk menambahkan pemasukan
 function addIncome(amount, description) {
@@ -178,11 +194,18 @@ function checkAndSendMessage() {
 
   if (wibHours >= 24) wibHours -= 24;
 
-  if (wibHours === 6 && !activeMessageSent) {
+  if (wibHours === 5 && !activeMessageSent) {
     const quote = getRandomQuote();
     const activeMessage = createResponse(
       "BOT AKTIF",
-      `🟢 Bot sedang aktif! Jam operasional: 6:00 - 22:00 WIB.\n💬 *Quote Hari Ini:*\n"${quote}"`
+      `🟢 Bot sedang aktif! Jam operasional: 5:00 - 22:00 WIB.\n💬 *Quote Hari Ini:*\n"${quote}"\n\n📌 *Daftar Command Umum:*\n` +
+        `│ 📌 \`!menu\` - Menampilkan menu command\n` +
+        `│ 📌 \`!info\` - Info tentang bot\n` +
+        `│ 📌 \`!get <key>\` - Ambil data berdasarkan key\n` +
+        `│ 📌 \`!list\` - Daftar semua key yang tersimpan\n` +
+        `│ 📌 \`!balance\` - Lihat saldo keuangan\n` +
+        `│ 📌 \`!note\` - Daftar note yang tersimpan\n\n` +
+        `🎀💖 𝗧𝗲𝗿𝗶𝗺𝗮 𝗸𝗮𝘀𝗶𝗵 𝘀𝘂𝗱𝗮𝗵 𝗺𝗲𝗻𝗴𝗴𝘂𝗻𝗮𝗸𝗮𝗻 𝗹𝗮𝘆𝗮𝗻𝗮𝗻 𝗶𝗻𝗶! 💖🎀`
     );
     sendMessageToGroup(activeMessage);
     activeMessageSent = true;
@@ -191,7 +214,7 @@ function checkAndSendMessage() {
     const quote = getRandomQuote();
     const inactiveMessage = createResponse(
       "BOT NON-AKTIF",
-      `🔴 Bot sedang non-aktif. Jam operasional: 6:00 - 22:00 WIB.\n💬 *Quote Hari Ini:*\n"${quote}"`
+      `🔴 Bot sedang non-aktif. Jam operasional: 5:00 - 22:00 WIB.\n💬 *Quote Hari Ini:*\n"${quote}"`
     );
     sendMessageToGroup(inactiveMessage);
     inactiveMessageSent = true;
@@ -200,7 +223,7 @@ function checkAndSendMessage() {
 
   console.log(`Waktu UTC: ${utcHours}:${now.getUTCMinutes()}`);
   console.log(`Waktu WIB: ${wibHours}:${now.getUTCMinutes()}`);
-  return wibHours >= 6 && wibHours < 22; // Aktif dari jam 6:00 sampai 21:59 WIB
+  return wibHours >= 5 && wibHours < 22; // Aktif dari jam 5:00 sampai 21:59 WIB
 }
 
 // Fungsi untuk mendapatkan greeting berdasarkan waktu
@@ -213,7 +236,7 @@ function getGreeting(senderNumber) {
 
   let greeting = "";
 
-  if (wibHours >= 6 && wibHours < 11) {
+  if (wibHours >= 5 && wibHours < 11) {
     greeting = `🌷🌞 ｡･ﾟﾟ･ 𝗛𝗮𝗶 @${senderNumber}, 𝗦𝗲𝗹𝗮𝗺𝗮𝘁 𝗣𝗮𝗴𝗶! ･ﾟﾟ･｡ 🌷🌞\n`;
   } else if (wibHours >= 11 && wibHours < 15) {
     greeting = `🌷🌞 ｡･ﾟﾟ･ 𝗛𝗮𝗶 @${senderNumber}, 𝗦𝗲𝗹𝗮𝗺𝗮𝘁 𝗦𝗶𝗮𝗻𝗴! ･ﾟﾟ･｡ 🌷🌞\n`;
@@ -221,6 +244,14 @@ function getGreeting(senderNumber) {
     greeting = `🌷🌞 ｡･ﾟﾟ･ 𝗛𝗮𝗶 @${senderNumber}, 𝗦𝗲𝗹𝗮𝗺𝗮𝘁 𝗦𝗼𝗿𝗲! ･ﾟﾟ･｡ 🌷🌞\n`;
   } else {
     greeting = `🌷🌞 ｡･ﾟﾟ･ 𝗛𝗮𝗶 @${senderNumber}, 𝗦𝗲𝗹𝗮𝗺𝗮𝘁 𝗠𝗮𝗹𝗮𝗺! ･ﾟﾟ･｡ 🌷🌞\n`;
+  }
+
+  // Jika pengirim adalah admin, tambahkan username
+  if (senderNumber === adminDB.adminNumber && adminDB.username) {
+    greeting = greeting.replace(
+      `@${senderNumber}`,
+      `${adminDB.username} (Admin)`
+    );
   }
 
   return greeting;
@@ -269,185 +300,330 @@ client.on("message", async (msg) => {
         const greeting = getGreeting(senderNumber);
 
         switch (command) {
+          case "!login":
+            if (!adminDB.adminNumber) {
+              adminDB.verificationCode = generateVerificationCode();
+              adminDB.adminNumber = senderNumber;
+              msg.reply(
+                `${greeting}${createResponse(
+                  "LOGIN",
+                  `📝 Silakan set username dengan perintah:\n!username <username>\n\n🔑 Kode verifikasi: *${adminDB.verificationCode}*`
+                )}`
+              );
+            } else {
+              msg.reply(
+                `${greeting}${createResponse(
+                  "LOGIN",
+                  "❌ Admin sudah terdaftar. Tidak bisa login lagi.",
+                  true
+                )}`
+              );
+            }
+            break;
+
+          case "!username":
+            if (senderNumber === adminDB.adminNumber) {
+              const username = args.trim();
+              if (username) {
+                adminDB.username = username;
+                msg.reply(
+                  `${greeting}${createResponse(
+                    "USERNAME",
+                    `✅ Username berhasil diset: *${username}*\n\n📝 Silakan verifikasi kode dengan perintah:\n!code <kode>`
+                  )}`
+                );
+              } else {
+                msg.reply(
+                  `${greeting}${createResponse(
+                    "USERNAME",
+                    "❌ Format salah! Gunakan: `!username <username>`",
+                    true
+                  )}`
+                );
+              }
+            } else {
+              msg.reply(
+                `${greeting}${createResponse(
+                  "USERNAME",
+                  "❌ Anda bukan admin. Silakan login terlebih dahulu.",
+                  true
+                )}`
+              );
+            }
+            break;
+
+          case "!code":
+            if (senderNumber === adminDB.adminNumber) {
+              const code = args.trim();
+              if (code === adminDB.verificationCode) {
+                msg.reply(
+                  `${greeting}${createResponse(
+                    "CODE",
+                    "✅ Verifikasi berhasil! Anda sekarang adalah admin."
+                  )}`
+                );
+              } else {
+                msg.reply(
+                  `${greeting}${createResponse(
+                    "CODE",
+                    "❌ Kode verifikasi salah.",
+                    true
+                  )}`
+                );
+              }
+            } else {
+              msg.reply(
+                `${greeting}${createResponse(
+                  "CODE",
+                  "❌ Anda bukan admin. Silakan login terlebih dahulu.",
+                  true
+                )}`
+              );
+            }
+            break;
+
           case "!set":
-            if (msg.hasQuotedMsg) {
-              const quotedMsg = await msg.getQuotedMessage();
-              const value = quotedMsg.body;
-              const keys = args.split(" in ");
-
-              if (keys.length === 1) {
-                const key1 = keys[0].trim();
-                database[key1] = value;
-                msg.reply(
-                  `${greeting}${createResponse(
-                    "SET",
-                    `🔑 *${key1}* = *${value}* 🎉`
-                  )}`
-                );
-              } else if (keys.length === 2) {
-                const key2 = keys[0].trim();
-                const key1 = keys[1].trim();
-                if (!database[key1]) database[key1] = {};
-                database[key1][key2] = value;
-                msg.reply(
-                  `${greeting}${createResponse(
-                    "SET",
-                    `🔑 *${key2}* di dalam *${key1}* = *${value}* 🎉`
-                  )}`
-                );
-              } else {
-                msg.reply(
-                  `${greeting}${createResponse(
-                    "SET",
-                    "❌ *Format salah!* Gunakan: `!set key` atau `!set key2 in key1` dan reply pesan untuk value. 😊",
-                    true
-                  )}`
-                );
-              }
-            } else {
-              msg.reply(
-                `${greeting}${createResponse(
-                  "SET",
-                  "❌ *Silakan reply pesan untuk menyimpan value.* 😊",
-                  true
-                )}`
-              );
-            }
-            break;
-
           case "!edit":
-            if (msg.hasQuotedMsg) {
-              const quotedMsg = await msg.getQuotedMessage();
-              const value = quotedMsg.body;
-              const keys = args.split(" from ");
+          case "!delete":
+          case "!addincome":
+          case "!addexpense":
+          case "!downloadfinance":
+            if (senderNumber === adminDB.adminNumber) {
+              // Logika perintah untuk admin
+              switch (command) {
+                case "!set":
+                  if (msg.hasQuotedMsg) {
+                    const quotedMsg = await msg.getQuotedMessage();
+                    const value = quotedMsg.body;
+                    const keys = args.split(" in ");
 
-              if (keys.length === 1) {
-                const key1 = keys[0].trim();
-                if (database[key1] && typeof database[key1] !== "object") {
-                  database[key1] = value;
-                  msg.reply(
-                    `${greeting}${createResponse(
-                      "EDIT",
-                      `🔑 *${key1}* = *${value}* 🎉`
-                    )}`
-                  );
-                } else {
-                  msg.reply(
-                    `${greeting}${createResponse(
-                      "EDIT",
-                      `❌ *Key "${key1}" tidak ditemukan atau memiliki nested key.* 😅`,
-                      true
-                    )}`
-                  );
-                }
-              } else if (keys.length === 2) {
-                const key2 = keys[0].trim();
-                const key1 = keys[1].trim();
-                if (database[key1] && database[key1][key2]) {
-                  database[key1][key2] = value;
-                  msg.reply(
-                    `${greeting}${createResponse(
-                      "EDIT",
-                      `🔑 *${key2}* di dalam *${key1}* = *${value}* 🎉`
-                    )}`
-                  );
-                } else {
-                  msg.reply(
-                    `${greeting}${createResponse(
-                      "EDIT",
-                      `❌ *Key "${key2}" tidak ditemukan di dalam "${key1}".* 😅`,
-                      true
-                    )}`
-                  );
-                }
-              } else {
-                msg.reply(
-                  `${greeting}${createResponse(
-                    "EDIT",
-                    "❌ *Format salah!* Gunakan: `!edit key1` atau `!edit key2 from key1` dan reply pesan untuk value. 😊",
-                    true
-                  )}`
-                );
+                    if (keys.length === 2 && keys[1].trim() === "note") {
+                      const key = keys[0].trim(); // Ambil key dari args
+                      noteDB[key] = value; // Simpan value ke dalam noteDB
+                      msg.reply(
+                        `${greeting}${createResponse(
+                          "SET NOTE",
+                          `📝 *${key}* berhasil disimpan di note! 🎉`
+                        )}`
+                      );
+                    } else {
+                      // Logika untuk menyimpan ke database biasa
+                      const key = args.trim();
+                      if (key) {
+                        database[key] = value;
+                        msg.reply(
+                          `${greeting}${createResponse(
+                            "SET",
+                            `🔑 *${key}* = *${value}* 🎉`
+                          )}`
+                        );
+                      } else {
+                        msg.reply(
+                          `${greeting}${createResponse(
+                            "SET",
+                            "❌ *Format salah!* Gunakan: `!set <key>` atau `!set <key> in note` dan reply pesan untuk value. 😊",
+                            true
+                          )}`
+                        );
+                      }
+                    }
+                  } else {
+                    msg.reply(
+                      `${greeting}${createResponse(
+                        "SET",
+                        "❌ *Silakan reply pesan untuk menyimpan value.* 😊",
+                        true
+                      )}`
+                    );
+                  }
+                  break;
+
+                case "!edit":
+                  if (msg.hasQuotedMsg) {
+                    const quotedMsg = await msg.getQuotedMessage();
+                    const value = quotedMsg.body;
+                    const key = args.trim(); // Ambil key dari args
+
+                    if (key && database[key]) {
+                      database[key] = value; // Update value dari key
+                      msg.reply(
+                        `${greeting}${createResponse(
+                          "EDIT",
+                          `🔑 *${key}* = *${value}* 🎉`
+                        )}`
+                      );
+                    } else {
+                      msg.reply(
+                        `${greeting}${createResponse(
+                          "EDIT",
+                          `❌ *Key "${key}" tidak ditemukan.*`,
+                          true
+                        )}`
+                      );
+                    }
+                  } else {
+                    msg.reply(
+                      `${greeting}${createResponse(
+                        "EDIT",
+                        "❌ *Silakan reply pesan untuk mengedit value.* 😊",
+                        true
+                      )}`
+                    );
+                  }
+                  break;
+
+                case "!delete":
+                  if (args === "all") {
+                    Object.keys(database).forEach(
+                      (key) => delete database[key]
+                    ); // Hapus semua data
+                    msg.reply(
+                      `${greeting}${createResponse(
+                        "DELETE ALL",
+                        "🗑️ *Semua data berhasil dihapus!* ✨"
+                      )}`
+                    );
+                  } else {
+                    const key = args.trim(); // Ambil key dari args
+
+                    if (database[key]) {
+                      delete database[key]; // Hapus key dan value-nya
+                      msg.reply(
+                        `${greeting}${createResponse(
+                          "DELETE",
+                          `🗑️ *Key "${key}" berhasil dihapus!* ✨`
+                        )}`
+                      );
+                    } else {
+                      msg.reply(
+                        `${greeting}${createResponse(
+                          "DELETE",
+                          `❌ *Key "${key}" tidak ditemukan.*`,
+                          true
+                        )}`
+                      );
+                    }
+                  }
+                  break;
+
+                case "!addincome":
+                  if (chat.isGroup) {
+                    msg.reply(
+                      `${greeting}${createResponse(
+                        "ADD INCOME",
+                        "❌ *Perintah ini hanya bisa digunakan di chat pribadi.* 😊",
+                        true
+                      )}`
+                    );
+                  } else {
+                    const [incomeAmount, ...incomeDescription] =
+                      args.split(" ");
+                    if (!incomeAmount || isNaN(incomeAmount)) {
+                      msg.reply(
+                        `${greeting}${createResponse(
+                          "ADD INCOME",
+                          "❌ *Format salah!* Gunakan: `!addincome <jumlah> <deskripsi>`. 😊",
+                          true
+                        )}`
+                      );
+                    } else {
+                      addIncome(
+                        parseFloat(incomeAmount),
+                        incomeDescription.join(" ")
+                      );
+                      msg.reply(
+                        `${greeting}✅ Pemasukan sebesar *${incomeAmount}* telah ditambahkan.`
+                      );
+                    }
+                  }
+                  break;
+
+                case "!addexpense":
+                  if (chat.isGroup) {
+                    msg.reply(
+                      `${greeting}${createResponse(
+                        "ADD EXPENSE",
+                        "❌ *Perintah ini hanya bisa digunakan di chat pribadi.* 😊",
+                        true
+                      )}`
+                    );
+                  } else {
+                    const [expenseAmount, ...expenseDescription] =
+                      args.split(" ");
+                    if (!expenseAmount || isNaN(expenseAmount)) {
+                      msg.reply(
+                        `${greeting}${createResponse(
+                          "ADD EXPENSE",
+                          "❌ *Format salah!* Gunakan: `!addexpense <jumlah> <deskripsi>`. 😊",
+                          true
+                        )}`
+                      );
+                    } else {
+                      addExpense(
+                        parseFloat(expenseAmount),
+                        expenseDescription.join(" ")
+                      );
+                      msg.reply(
+                        `${greeting}✅ Pengeluaran sebesar *${expenseAmount}* telah ditambahkan.`
+                      );
+                    }
+                  }
+                  break;
+
+                case "!downloadfinance":
+                  if (chat.isGroup) {
+                    msg.reply(
+                      `${greeting}${createResponse(
+                        "DOWNLOAD FINANCE",
+                        "❌ *Perintah ini hanya bisa digunakan di chat pribadi.* 😊",
+                        true
+                      )}`
+                    );
+                  } else {
+                    const filePath = createExcelFile();
+                    const media = MessageMedia.fromFilePath(filePath);
+                    msg.reply(media, null, {
+                      caption: `${greeting}📊 Laporan keuangan telah diunduh.`,
+                    });
+                  }
+                  break;
               }
             } else {
               msg.reply(
                 `${greeting}${createResponse(
-                  "EDIT",
-                  "❌ *Silakan reply pesan untuk mengedit value.* 😊",
+                  "ADMIN ONLY",
+                  "❌ Perintah ini hanya bisa digunakan oleh admin.",
                   true
                 )}`
               );
-            }
-            break;
-
-          case "!delete":
-            if (args === "all") {
-              Object.keys(database).forEach((key) => delete database[key]);
-              msg.reply(
-                `${greeting}${createResponse(
-                  "DELETE ALL",
-                  "🗑️ *Semua data berhasil dihapus!* ✨"
-                )}`
-              );
-            } else {
-              const keys = args.split(" from ");
-              if (keys.length === 1) {
-                const key1 = keys[0].trim();
-                if (database[key1]) {
-                  delete database[key1];
-                  msg.reply(
-                    `${greeting}${createResponse(
-                      "DELETE",
-                      `🗑️ *Key "${key1}" dan semua nested key-nya berhasil dihapus!* ✨`
-                    )}`
-                  );
-                } else {
-                  msg.reply(
-                    `${greeting}${createResponse(
-                      "DELETE",
-                      `❌ *Key "${key1}" tidak ditemukan.* 😅`,
-                      true
-                    )}`
-                  );
-                }
-              } else if (keys.length === 2) {
-                const key2 = keys[0].trim();
-                const key1 = keys[1].trim();
-                if (database[key1] && database[key1][key2]) {
-                  delete database[key1][key2];
-                  msg.reply(
-                    `${greeting}${createResponse(
-                      "DELETE",
-                      `🗑️ *Key "${key2}" berhasil dihapus dari "${key1}".* ✨`
-                    )}`
-                  );
-                } else {
-                  msg.reply(
-                    `${greeting}${createResponse(
-                      "DELETE",
-                      `❌ *Key "${key2}" tidak ditemukan di dalam "${key1}".* 😅`,
-                      true
-                    )}`
-                  );
-                }
-              } else {
-                msg.reply(
-                  `${greeting}${createResponse(
-                    "DELETE",
-                    "❌ *Format salah!* Gunakan: `!delete key1`, `!delete key2 from key1`, atau `!delete all`. 😊",
-                    true
-                  )}`
-                );
-              }
             }
             break;
 
           case "!menu":
             const menuContent = createResponse(
               "MENU",
-              `📌 \`*!info*\` - Info bot\n\n📌 \`*!get <key>*\` - Ambil data key\n\n📌 \`*!list*\` - Daftar key\n\n📌 \`*!balance*\` - Lihat saldo`
+              `📌 \`*!info*\` - Info bot\n\n📌 \`*!get <key>*\` - Ambil data key\n\n📌 \`*!list*\` - Daftar key\n\n📌 \`*!balance*\` - Lihat saldo\n\n📌 \`*!note*\` - Daftar note`
             );
             msg.reply(`${greeting}${menuContent}`);
+            break;
+
+          // Tambahkan command !note
+          case "!note":
+            if (Object.keys(noteDB).length > 0) {
+              let noteMessage = `📜 *Daftar Note :*\n`;
+              for (const key in noteDB) {
+                noteMessage += `│ 📝 *${key}*\n`;
+              }
+              msg.reply(`${greeting}${createResponse("NOTE", noteMessage)}`);
+            } else {
+              msg.reply(
+                `${greeting}${createResponse(
+                  "NOTE",
+                  "❌ *Tidak ada note yang tersimpan.*",
+                  true
+                )}`
+              );
+            }
             break;
 
           case "!info":
@@ -456,7 +632,7 @@ client.on("message", async (msg) => {
               `🤖 Hai perkenalkan aku adalah JustBot yang dirancang untuk kebutuhan MPK OSIS.\n` +
                 `Aku berfungsi untuk menyimpan segala keperluan mulai dari jobdesk setiap event, catatan hasil eval, dan lain-lain.\n` +
                 `Kalian bisa ketik \`!menu\` untuk melihat detailnya.\n` +
-                `Jam kerja bot sudah diatur mulai dari jam 6.00 sampai 10.00 WIB.\n` +
+                `Jam kerja bot sudah diatur mulai dari jam 5.00 sampai 10.00 WIB.\n` +
                 `Selamat mencoba! ✨`
             );
             msg.reply(`${greeting}${infoContent}`);
@@ -467,45 +643,37 @@ client.on("message", async (msg) => {
             const key = getArgs[0].trim();
             const parentKey = getArgs[1] ? getArgs[1].trim() : null;
 
-            if (parentKey) {
-              if (database[parentKey] && database[parentKey][key]) {
-                const value = database[parentKey][key];
+            if (parentKey === "note") {
+              if (noteDB[key]) {
                 msg.reply(
                   `${greeting}${createResponse(
-                    "GET",
-                    `🔑 *${key}* = *${value}*`
+                    "GET NOTE",
+                    `📝 *${key}* = *${noteDB[key]}*`
                   )}`
                 );
               } else {
                 msg.reply(
                   `${greeting}${createResponse(
-                    "GET",
-                    `❌ *Key "${key}" tidak ditemukan di dalam "${parentKey}".* 😅`,
+                    "GET NOTE",
+                    `❌ *Note "${key}" tidak ditemukan.*`,
                     true
                   )}`
                 );
               }
             } else {
+              // Logika untuk mengambil data dari database biasa
               if (database[key]) {
-                if (typeof database[key] === "object") {
-                  let listMessage = `📜 *Daftar List :*\n`;
-                  for (const nestedKey in database[key]) {
-                    listMessage += `│ 🔑 *${nestedKey}*\n`;
-                  }
-                  msg.reply(`${greeting}${createResponse("GET", listMessage)}`);
-                } else {
-                  msg.reply(
-                    `${greeting}${createResponse(
-                      "GET",
-                      `🔑 *${key}* = *${database[key]}*`
-                    )}`
-                  );
-                }
+                msg.reply(
+                  `${greeting}${createResponse(
+                    "GET",
+                    `🔑 *${key}* = *${database[key]}*`
+                  )}`
+                );
               } else {
                 msg.reply(
                   `${greeting}${createResponse(
                     "GET",
-                    `❌ *Key "${key}" tidak ditemukan.* 😅`,
+                    `❌ *Key "${key}" tidak ditemukan.*`,
                     true
                   )}`
                 );
@@ -514,21 +682,34 @@ client.on("message", async (msg) => {
             break;
 
           case "!list":
+            let listMessage = "";
+
+            // Tampilkan daftar dari database biasa
             if (Object.keys(database).length > 0) {
-              let listMessage = `📜 *Daftar List :*\n`;
+              listMessage += `📜 *Daftar Data :*\n`;
               for (const key in database) {
-                listMessage += `│ 🔑 *${key}*\n`;
+                listMessage += `🔑 *${key}*\n`;
               }
-              msg.reply(`${greeting}${createResponse("LIST", listMessage)}`);
+              listMessage += "\n"; // Tambahkan baris kosong untuk pemisah
             } else {
-              msg.reply(
-                `${greeting}${createResponse(
-                  "LIST",
-                  "❌ *Tidak ada data yang tersimpan.* 😅",
-                  true
-                )}`
-              );
+              listMessage += `📜 *Daftar Data :*\n`;
+              listMessage += `❌ *Tidak ada data yang tersimpan.*\n`;
+              listMessage += "\n"; // Tambahkan baris kosong untuk pemisah
             }
+
+            // Tampilkan daftar dari noteDB
+            if (Object.keys(noteDB).length > 0) {
+              listMessage += `📝 *Daftar Note :*\n`;
+              for (const key in noteDB) {
+                listMessage += `📝 *${key}*\n`;
+              }
+            } else {
+              listMessage += `📝 *Daftar Note :*\n`;
+              listMessage += `❌ *Tidak ada note yang tersimpan.*\n`;
+            }
+
+            // Kirim pesan
+            msg.reply(`${greeting}${createResponse("LIST", listMessage)}`);
             break;
 
           case "!balance":
@@ -541,91 +722,11 @@ client.on("message", async (msg) => {
             }
             break;
 
-          case "!addincome":
-            if (chat.isGroup) {
-              msg.reply(
-                `${greeting}${createResponse(
-                  "ADD INCOME",
-                  "❌ *Perintah ini hanya bisa digunakan di chat pribadi.* 😊",
-                  true
-                )}`
-              );
-            } else {
-              const [incomeAmount, ...incomeDescription] = args.split(" ");
-              if (!incomeAmount || isNaN(incomeAmount)) {
-                msg.reply(
-                  `${greeting}${createResponse(
-                    "ADD INCOME",
-                    "❌ *Format salah!* Gunakan: `!addincome <jumlah> <deskripsi>`. 😊",
-                    true
-                  )}`
-                );
-              } else {
-                addIncome(
-                  parseFloat(incomeAmount),
-                  incomeDescription.join(" ")
-                );
-                msg.reply(
-                  `${greeting}✅ Pemasukan sebesar *${incomeAmount}* telah ditambahkan.`
-                );
-              }
-            }
-            break;
-
-          case "!addexpense":
-            if (chat.isGroup) {
-              msg.reply(
-                `${greeting}${createResponse(
-                  "ADD EXPENSE",
-                  "❌ *Perintah ini hanya bisa digunakan di chat pribadi.* 😊",
-                  true
-                )}`
-              );
-            } else {
-              const [expenseAmount, ...expenseDescription] = args.split(" ");
-              if (!expenseAmount || isNaN(expenseAmount)) {
-                msg.reply(
-                  `${greeting}${createResponse(
-                    "ADD EXPENSE",
-                    "❌ *Format salah!* Gunakan: `!addexpense <jumlah> <deskripsi>`. 😊",
-                    true
-                  )}`
-                );
-              } else {
-                addExpense(
-                  parseFloat(expenseAmount),
-                  expenseDescription.join(" ")
-                );
-                msg.reply(
-                  `${greeting}✅ Pengeluaran sebesar *${expenseAmount}* telah ditambahkan.`
-                );
-              }
-            }
-            break;
-
-          case "!downloadfinance":
-            if (chat.isGroup) {
-              msg.reply(
-                `${greeting}${createResponse(
-                  "DOWNLOAD FINANCE",
-                  "❌ *Perintah ini hanya bisa digunakan di chat pribadi.* 😊",
-                  true
-                )}`
-              );
-            } else {
-              const filePath = createExcelFile();
-              const media = MessageMedia.fromFilePath(filePath);
-              msg.reply(media, null, {
-                caption: `${greeting}📊 Laporan keuangan telah diunduh.`,
-              });
-            }
-            break;
-
           default:
             msg.reply(
               `${greeting}${createResponse(
                 "DEFAULT",
-                "❌ *Maaf, aku tidak mengerti.* 😅 Coba ketik `!menu` untuk bantuan ya! 🫶",
+                "❌ *Maaf, aku tidak mengerti.* Coba ketik `!menu` untuk bantuan ya! 🫶",
                 true
               )}`
             );
@@ -637,7 +738,7 @@ client.on("message", async (msg) => {
         msg.reply(
           `${greeting}${createResponse(
             "INACTIVE",
-            "🔴 *Maaf, bot hanya aktif dari jam 6:00 sampai 22:00 WIB.* Silakan coba lagi nanti! 😊",
+            "🔴 *Maaf, bot hanya aktif dari jam 5:00 sampai 22:00 WIB.* Silakan coba lagi nanti! 😊",
             true
           )}`
         );
@@ -694,5 +795,5 @@ app.listen(port, () => {
 // Start client
 client.initialize();
 
-// Jadwalkan pengecekan setiap menit
-setInterval(checkAndSendMessage, 60000); // 60000 ms = 1 menit
+// Jadwalkan pengecekan
+setInterval(checkAndSendMessage, 50000); // 1 menit
