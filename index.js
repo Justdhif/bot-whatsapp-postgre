@@ -44,11 +44,6 @@ const financeDB = {
 // Database untuk note
 const noteDB = {};
 
-// Fungsi untuk menghasilkan kode verifikasi acak
-function generateVerificationCode() {
-  return Math.floor(100000 + Math.random() * 900000).toString();
-}
-
 // Daftar quotes acak
 const quotes = [
   "Hidup adalah perjalanan, bukan tujuan. - Ralph Waldo Emerson",
@@ -279,249 +274,269 @@ client.on("message", async (msg) => {
       if (checkAndSendMessage()) {
         const command = body.split(" ")[0];
         const args = body.split(" ").slice(1).join(" ");
-        const senderNumber = msg.from.split("@")[0];
+
+        // Ambil nomor pengguna yang mengirim pesan
+        const senderNumber = chat.isGroup
+          ? msg.author || msg.from.split("@")[0] // Gunakan msg.author untuk grup
+          : msg.from.split("@")[0]; // Gunakan msg.from untuk chat pribadi
 
         // Tambahkan greeting berdasarkan waktu
         const greeting = getGreeting(senderNumber);
 
         switch (command) {
-          case "!login":
-            const verificationCode = generateVerificationCode();
-            msg.reply(
-              `${greeting}${createResponse(
-                "LOGIN",
-                `📝 Silakan set username dengan perintah:\n!username <username>\n\n🔑 Kode verifikasi: *${verificationCode}*`
-              )}`
-            );
-            break;
+          case "!set":
+            if (msg.hasQuotedMsg) {
+              const quotedMsg = await msg.getQuotedMessage();
+              const value = quotedMsg.body;
+              const keys = args.split(" in ");
 
-          case "!username":
-            const username = args.trim();
-            if (username) {
-              msg.reply(
-                `${greeting}${createResponse(
-                  "USERNAME",
-                  `✅ Username berhasil diset: *${username}*\n\n📝 Silakan verifikasi kode dengan perintah:\n!code <kode>`
-                )}`
-              );
+              if (keys.length === 2 && keys[1].trim() === "note") {
+                const key = keys[0].trim(); // Ambil key dari args
+                noteDB[key] = value; // Simpan value ke dalam noteDB
+                msg.reply(
+                  `${greeting}${createResponse(
+                    "SET NOTE",
+                    `📝 *${key}* berhasil disimpan di note! 🎉`
+                  )}`
+                );
+              } else {
+                // Logika untuk menyimpan ke database biasa
+                const key = args.trim();
+                if (key) {
+                  database[key] = value;
+                  msg.reply(
+                    `${greeting}${createResponse(
+                      "SET",
+                      `🔑 *${key}* = *${value}* 🎉`
+                    )}`
+                  );
+                } else {
+                  msg.reply(
+                    `${greeting}${createResponse(
+                      "SET",
+                      "❌ *Format salah!* Gunakan: `!set <key>` atau `!set <key> in note` dan reply pesan untuk value. 😊",
+                      true
+                    )}`
+                  );
+                }
+              }
             } else {
               msg.reply(
                 `${greeting}${createResponse(
-                  "USERNAME",
-                  "❌ Format salah! Gunakan: `!username <username>`",
+                  "SET",
+                  "❌ *Silakan reply pesan untuk menyimpan value.* 😊",
                   true
                 )}`
               );
             }
             break;
 
-          case "!code":
-            const code = args.trim();
-            msg.reply(
-              `${greeting}${createResponse("CODE", "✅ Verifikasi berhasil!")}`
-            );
+          case "!edit":
+            if (msg.hasQuotedMsg) {
+              const quotedMsg = await msg.getQuotedMessage();
+              const value = quotedMsg.body;
+              const key = args.trim(); // Ambil key dari args
+
+              if (key && database[key]) {
+                database[key] = value; // Update value dari key
+                msg.reply(
+                  `${greeting}${createResponse(
+                    "EDIT",
+                    `🔑 *${key}* = *${value}* 🎉`
+                  )}`
+                );
+              } else {
+                msg.reply(
+                  `${greeting}${createResponse(
+                    "EDIT",
+                    `❌ *Key "${key}" tidak ditemukan.*`,
+                    true
+                  )}`
+                );
+              }
+            } else {
+              msg.reply(
+                `${greeting}${createResponse(
+                  "EDIT",
+                  "❌ *Silakan reply pesan untuk mengedit value.* 😊",
+                  true
+                )}`
+              );
+            }
             break;
 
-          case "!set":
-          case "!edit":
           case "!delete":
+            const deleteArgs = args.split(" from ");
+            const keyToDelete = deleteArgs[0].trim();
+            const deleteFrom = deleteArgs[1] ? deleteArgs[1].trim() : null;
+
+            if (keyToDelete === "list") {
+              // Hapus semua key di database biasa
+              Object.keys(database).forEach((key) => delete database[key]);
+              msg.reply(
+                `${greeting}${createResponse(
+                  "DELETE LIST",
+                  "🗑️ *Semua key di list berhasil dihapus!* ✨"
+                )}`
+              );
+            } else if (keyToDelete === "note") {
+              // Hapus semua key di noteDB
+              Object.keys(noteDB).forEach((key) => delete noteDB[key]);
+              msg.reply(
+                `${greeting}${createResponse(
+                  "DELETE NOTE",
+                  "🗑️ *Semua key di note berhasil dihapus!* ✨"
+                )}`
+              );
+            } else if (keyToDelete === "all") {
+              // Hapus semua data di database biasa dan noteDB
+              Object.keys(database).forEach((key) => delete database[key]);
+              Object.keys(noteDB).forEach((key) => delete noteDB[key]);
+              msg.reply(
+                `${greeting}${createResponse(
+                  "DELETE ALL",
+                  "🗑️ *Semua data di list dan note berhasil dihapus!* ✨"
+                )}`
+              );
+            } else if (deleteFrom === "note") {
+              // Hapus key tertentu dari noteDB
+              if (noteDB[keyToDelete]) {
+                delete noteDB[keyToDelete];
+                msg.reply(
+                  `${greeting}${createResponse(
+                    "DELETE NOTE",
+                    `🗑️ *Key "${keyToDelete}" di note berhasil dihapus!* ✨`
+                  )}`
+                );
+              } else {
+                msg.reply(
+                  `${greeting}${createResponse(
+                    "DELETE NOTE",
+                    `❌ *Key "${keyToDelete}" tidak ditemukan di note.*`,
+                    true
+                  )}`
+                );
+              }
+            } else {
+              // Hapus key tertentu dari database biasa
+              if (database[keyToDelete]) {
+                delete database[keyToDelete];
+                msg.reply(
+                  `${greeting}${createResponse(
+                    "DELETE",
+                    `🗑️ *Key "${keyToDelete}" berhasil dihapus!* ✨`
+                  )}`
+                );
+              } else {
+                msg.reply(
+                  `${greeting}${createResponse(
+                    "DELETE",
+                    `❌ *Key "${keyToDelete}" tidak ditemukan.*`,
+                    true
+                  )}`
+                );
+              }
+            }
+            break;
+
           case "!addincome":
+            if (chat.isGroup) {
+              msg.reply(
+                `${greeting}${createResponse(
+                  "ADD INCOME",
+                  "❌ *Perintah ini hanya bisa digunakan di chat pribadi.* 😊",
+                  true
+                )}`
+              );
+            } else {
+              const [incomeAmount, ...incomeDescription] = args.split(" ");
+              if (!incomeAmount || isNaN(incomeAmount)) {
+                msg.reply(
+                  `${greeting}${createResponse(
+                    "ADD INCOME",
+                    "❌ *Format salah!* Gunakan: `!addincome <jumlah> <deskripsi>`. 😊",
+                    true
+                  )}`
+                );
+              } else {
+                addIncome(
+                  parseFloat(incomeAmount),
+                  incomeDescription.join(" ")
+                );
+                msg.reply(
+                  `${greeting}✅ Pemasukan sebesar *${incomeAmount}* telah ditambahkan.`
+                );
+              }
+            }
+            break;
+
           case "!addexpense":
+            if (chat.isGroup) {
+              msg.reply(
+                `${greeting}${createResponse(
+                  "ADD EXPENSE",
+                  "❌ *Perintah ini hanya bisa digunakan di chat pribadi.* 😊",
+                  true
+                )}`
+              );
+            } else {
+              const [expenseAmount, ...expenseDescription] = args.split(" ");
+              if (!expenseAmount || isNaN(expenseAmount)) {
+                msg.reply(
+                  `${greeting}${createResponse(
+                    "ADD EXPENSE",
+                    "❌ *Format salah!* Gunakan: `!addexpense <jumlah> <deskripsi>`. 😊",
+                    true
+                  )}`
+                );
+              } else {
+                addExpense(
+                  parseFloat(expenseAmount),
+                  expenseDescription.join(" ")
+                );
+                msg.reply(
+                  `${greeting}✅ Pengeluaran sebesar *${expenseAmount}* telah ditambahkan.`
+                );
+              }
+            }
+            break;
+
           case "!downloadfinance":
-            switch (command) {
-              case "!set":
-                if (msg.hasQuotedMsg) {
-                  const quotedMsg = await msg.getQuotedMessage();
-                  const value = quotedMsg.body;
-                  const keys = args.split(" in ");
+            if (chat.isGroup) {
+              msg.reply(
+                `${greeting}${createResponse(
+                  "DOWNLOAD FINANCE",
+                  "❌ *Perintah ini hanya bisa digunakan di chat pribadi.* 😊",
+                  true
+                )}`
+              );
+            } else {
+              const filePath = createExcelFile();
+              const media = MessageMedia.fromFilePath(filePath);
+              msg.reply(media, null, {
+                caption: `${greeting}📊 Laporan keuangan telah diunduh.`,
+              });
+            }
+            break;
 
-                  if (keys.length === 2 && keys[1].trim() === "note") {
-                    const key = keys[0].trim(); // Ambil key dari args
-                    noteDB[key] = value; // Simpan value ke dalam noteDB
-                    msg.reply(
-                      `${greeting}${createResponse(
-                        "SET NOTE",
-                        `📝 *${key}* berhasil disimpan di note! 🎉`
-                      )}`
-                    );
-                  } else {
-                    // Logika untuk menyimpan ke database biasa
-                    const key = args.trim();
-                    if (key) {
-                      database[key] = value;
-                      msg.reply(
-                        `${greeting}${createResponse(
-                          "SET",
-                          `🔑 *${key}* = *${value}* 🎉`
-                        )}`
-                      );
-                    } else {
-                      msg.reply(
-                        `${greeting}${createResponse(
-                          "SET",
-                          "❌ *Format salah!* Gunakan: `!set <key>` atau `!set <key> in note` dan reply pesan untuk value. 😊",
-                          true
-                        )}`
-                      );
-                    }
-                  }
-                } else {
-                  msg.reply(
-                    `${greeting}${createResponse(
-                      "SET",
-                      "❌ *Silakan reply pesan untuk menyimpan value.* 😊",
-                      true
-                    )}`
-                  );
-                }
-                break;
-
-              case "!edit":
-                if (msg.hasQuotedMsg) {
-                  const quotedMsg = await msg.getQuotedMessage();
-                  const value = quotedMsg.body;
-                  const key = args.trim(); // Ambil key dari args
-
-                  if (key && database[key]) {
-                    database[key] = value; // Update value dari key
-                    msg.reply(
-                      `${greeting}${createResponse(
-                        "EDIT",
-                        `🔑 *${key}* = *${value}* 🎉`
-                      )}`
-                    );
-                  } else {
-                    msg.reply(
-                      `${greeting}${createResponse(
-                        "EDIT",
-                        `❌ *Key "${key}" tidak ditemukan.*`,
-                        true
-                      )}`
-                    );
-                  }
-                } else {
-                  msg.reply(
-                    `${greeting}${createResponse(
-                      "EDIT",
-                      "❌ *Silakan reply pesan untuk mengedit value.* 😊",
-                      true
-                    )}`
-                  );
-                }
-                break;
-
-              case "!delete":
-                if (args === "all") {
-                  Object.keys(database).forEach((key) => delete database[key]); // Hapus semua data
-                  msg.reply(
-                    `${greeting}${createResponse(
-                      "DELETE ALL",
-                      "🗑️ *Semua data berhasil dihapus!* ✨"
-                    )}`
-                  );
-                } else {
-                  const key = args.trim(); // Ambil key dari args
-
-                  if (database[key]) {
-                    delete database[key]; // Hapus key dan value-nya
-                    msg.reply(
-                      `${greeting}${createResponse(
-                        "DELETE",
-                        `🗑️ *Key "${key}" berhasil dihapus!* ✨`
-                      )}`
-                    );
-                  } else {
-                    msg.reply(
-                      `${greeting}${createResponse(
-                        "DELETE",
-                        `❌ *Key "${key}" tidak ditemukan.*`,
-                        true
-                      )}`
-                    );
-                  }
-                }
-                break;
-
-              case "!addincome":
-                if (chat.isGroup) {
-                  msg.reply(
-                    `${greeting}${createResponse(
-                      "ADD INCOME",
-                      "❌ *Perintah ini hanya bisa digunakan di chat pribadi.* 😊",
-                      true
-                    )}`
-                  );
-                } else {
-                  const [incomeAmount, ...incomeDescription] = args.split(" ");
-                  if (!incomeAmount || isNaN(incomeAmount)) {
-                    msg.reply(
-                      `${greeting}${createResponse(
-                        "ADD INCOME",
-                        "❌ *Format salah!* Gunakan: `!addincome <jumlah> <deskripsi>`. 😊",
-                        true
-                      )}`
-                    );
-                  } else {
-                    addIncome(
-                      parseFloat(incomeAmount),
-                      incomeDescription.join(" ")
-                    );
-                    msg.reply(
-                      `${greeting}✅ Pemasukan sebesar *${incomeAmount}* telah ditambahkan.`
-                    );
-                  }
-                }
-                break;
-
-              case "!addexpense":
-                if (chat.isGroup) {
-                  msg.reply(
-                    `${greeting}${createResponse(
-                      "ADD EXPENSE",
-                      "❌ *Perintah ini hanya bisa digunakan di chat pribadi.* 😊",
-                      true
-                    )}`
-                  );
-                } else {
-                  const [expenseAmount, ...expenseDescription] =
-                    args.split(" ");
-                  if (!expenseAmount || isNaN(expenseAmount)) {
-                    msg.reply(
-                      `${greeting}${createResponse(
-                        "ADD EXPENSE",
-                        "❌ *Format salah!* Gunakan: `!addexpense <jumlah> <deskripsi>`. 😊",
-                        true
-                      )}`
-                    );
-                  } else {
-                    addExpense(
-                      parseFloat(expenseAmount),
-                      expenseDescription.join(" ")
-                    );
-                    msg.reply(
-                      `${greeting}✅ Pengeluaran sebesar *${expenseAmount}* telah ditambahkan.`
-                    );
-                  }
-                }
-                break;
-
-              case "!downloadfinance":
-                if (chat.isGroup) {
-                  msg.reply(
-                    `${greeting}${createResponse(
-                      "DOWNLOAD FINANCE",
-                      "❌ *Perintah ini hanya bisa digunakan di chat pribadi.* 😊",
-                      true
-                    )}`
-                  );
-                } else {
-                  const filePath = createExcelFile();
-                  const media = MessageMedia.fromFilePath(filePath);
-                  msg.reply(media, null, {
-                    caption: `${greeting}📊 Laporan keuangan telah diunduh.`,
-                  });
-                }
-                break;
+          case "!reset":
+            if (args === "finance") {
+              financeDB.income = [];
+              financeDB.expenses = [];
+              msg.reply(
+                `${greeting}${createResponse(
+                  "RESET FINANCE",
+                  "💰 *Data keuangan berhasil direset!* ✨"
+                )}`
+              );
+            } else {
+              msg.reply(
+                `${greeting}${createResponse(
+                  "RESET",
+                  "❌ *Format salah!* Gunakan: `!reset finance`.",
+                  true
+                )}`
+              );
             }
             break;
 
