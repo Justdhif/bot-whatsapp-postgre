@@ -269,7 +269,6 @@ client.on("message", async (msg) => {
   if (isBotMentioned || !chat.isGroup) {
     const body = msg.body.replace(`@${client.info.wid.user}`, "").trim();
 
-    // Cek jika pesan diawali dengan tanda seru (!)
     if (body.startsWith("!")) {
       if (checkAndSendMessage()) {
         const command = body.split(" ")[0];
