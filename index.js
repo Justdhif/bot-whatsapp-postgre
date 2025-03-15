@@ -269,7 +269,6 @@ function checkReminders() {
       return;
     }
 
-    // Kirim notifikasi 1 hari sebelumnya
     const oneDayBefore = 86400000; // 1 hari dalam milidetik
     if (timeDiff <= oneDayBefore && !reminder.daysNotificationSent) {
       const notificationMessage = `⏰ *Reminder Notification (1 hari sebelumnya):*\n${
