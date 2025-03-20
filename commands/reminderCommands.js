@@ -1,14 +1,11 @@
 const { createResponse } = require("../utils/createResponse");
 const { getGreeting } = require("../utils/getGreeting");
-const { reminderDB } = require("../database/reminderDB");
-const {
-  setReminder,
-  viewReminders,
-  checkReminders,
-} = require("../utils/reminderUtils");
+const { PrismaClient } = require("@prisma/client");
+
+const prisma = new PrismaClient();
 
 module.exports = {
-  handleRemindCommand: (msg, args) => {
+  handleRemindCommand: async (msg, args) => {
     const greeting = getGreeting();
     if (args.length < 6) {
       msg.reply(
@@ -21,26 +18,55 @@ module.exports = {
     } else {
       const [date, month, year, hour, minute, ...messageParts] = args;
       const message = messageParts.join(" ");
-      const reminder = setReminder(
-        date,
-        month,
-        year,
-        hour,
-        minute,
-        message,
-        // msg.chat.id._serialized
+
+      // Buat objek Date untuk reminder
+      const reminderDate = new Date(year, month - 1, date, hour, minute);
+
+      // Simpan reminder ke PostgreSQL
+      await prisma.reminders.create({
+        data: {
+          date: reminderDate,
+          message: message,
+        },
+      });
+
+      msg.reply(
+        `${greeting}${createResponse(
+          "REMIND",
+          `⏰ *Reminder berhasil ditambahkan!*\n` +
+            `📅 Waktu: *${reminderDate.toLocaleString()}*\n` +
+            `📝 Pesan: *${message}*`
+        )}`
       );
-      msg.reply(`${greeting}${createResponse("REMIND", reminder)}`);
     }
   },
 
-  handleRemindersCommand: (msg) => {
+  handleRemindersCommand: async (msg) => {
     const greeting = getGreeting();
-    const reminders = viewReminders();
-    msg.reply(`${greeting}${createResponse("REMINDERS", reminders)}`);
+    const reminders = await prisma.reminders.findMany(); // Ambil semua reminder dari PostgreSQL
+
+    // Format daftar reminder
+    const reminderList =
+      reminders.length > 0
+        ? reminders
+            .map(
+              (reminder, index) =>
+                `${index + 1}. ⏰ *${new Date(
+                  reminder.date
+                ).toLocaleString()}*\n` + `   📝 *${reminder.message}*`
+            )
+            .join("\n\n")
+        : "❌ *Tidak ada reminder yang tersimpan.*";
+
+    msg.reply(
+      `${greeting}${createResponse(
+        "REMINDERS",
+        `📅 *Daftar Reminder:*\n${reminderList}`
+      )}`
+    );
   },
 
-  handleDeleteRemindCommand: (msg, args) => {
+  handleDeleteRemindCommand: async (msg, args) => {
     const greeting = getGreeting();
     const reminderMessage = args.join(" ");
     if (!reminderMessage) {
@@ -54,12 +80,17 @@ module.exports = {
       return;
     }
 
-    const reminderIndex = reminderDB.findIndex(
-      (reminder) =>
-        reminder.message.toLowerCase() === reminderMessage.toLowerCase()
-    );
+    // Cari reminder berdasarkan pesan
+    const reminderToDelete = await prisma.reminders.findFirst({
+      where: {
+        message: {
+          contains: reminderMessage,
+          mode: "insensitive", // Case-insensitive search
+        },
+      },
+    });
 
-    if (reminderIndex === -1) {
+    if (!reminderToDelete) {
       msg.reply(
         `${greeting}${createResponse(
           "DELETE REMIND",
@@ -68,19 +99,19 @@ module.exports = {
         )}`
       );
     } else {
-      const deletedReminder = reminderDB.splice(reminderIndex, 1)[0];
+      // Hapus reminder dari PostgreSQL
+      await prisma.reminders.delete({
+        where: { id: reminderToDelete.id },
+      });
+
       msg.reply(
         `${greeting}${createResponse(
           "DELETE REMIND",
           `🗑️ *Reminder berhasil dihapus!*\n` +
             `⏰ Waktu: *${new Date(
-              deletedReminder.year,
-              deletedReminder.month - 1,
-              deletedReminder.date,
-              deletedReminder.hour,
-              deletedReminder.minute
+              reminderToDelete.date
             ).toLocaleString()}*\n` +
-            `📝 Pesan: *${deletedReminder.message}*`
+            `📝 Pesan: *${reminderToDelete.message}*`
         )}`
       );
     }

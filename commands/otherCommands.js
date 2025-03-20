@@ -1,9 +1,8 @@
 const { createResponse } = require("../utils/createResponse");
 const { getGreeting } = require("../utils/getGreeting");
-const { database } = require("../database/database");
-const { financeDB } = require("../database/financeDB");
-const { noteDB } = require("../database/noteDB");
-const { reminderDB } = require("../database/reminderDB");
+const { PrismaClient } = require("@prisma/client");
+
+const prisma = new PrismaClient();
 
 module.exports = {
   handleMenuCommand: async (msg) => {
@@ -80,19 +79,30 @@ module.exports = {
     );
   },
 
-  handleResetAllCommand: (msg) => {
+  handleResetAllCommand: async (msg) => {
     const greeting = getGreeting();
-    Object.keys(database).forEach((key) => delete database[key]);
-    Object.keys(noteDB).forEach((key) => delete noteDB[key]);
-    financeDB.income = [];
-    financeDB.expenses = [];
-    reminderDB.length = 0;
 
-    msg.reply(
-      `${greeting}${createResponse(
-        "RESET ALL",
-        "🗑️ *Semua data (database, note, keuangan, dan reminder) berhasil direset!* ✨"
-      )}`
-    );
+    try {
+      await prisma.data.deleteMany(); // Hapus semua data dari PostgreSQL
+      await prisma.notes.deleteMany(); // Hapus semua data note dari PostgreSQL
+      await prisma.finance.deleteMany(); // Hapus semua data keuangan dari PostgreSQL
+      await prisma.reminders.deleteMany(); // Hapus semua data reminder dari PostgreSQL
+
+      msg.reply(
+        `${greeting}${createResponse(
+          "RESET ALL",
+          "🗑️ *Semua data berhasil direset!* ✨"
+        )}`
+      );
+    } catch (error) {
+      console.error("Gagal mereset data:", error);
+      msg.reply(
+        `${greeting}${createResponse(
+          "RESET ALL",
+          "❌ *Gagal mereset data. Silakan coba lagi.*",
+          true
+        )}`
+      );
+    }
   },
 };

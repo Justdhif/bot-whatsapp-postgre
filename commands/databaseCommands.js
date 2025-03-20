@@ -1,6 +1,7 @@
 const { createResponse } = require("../utils/createResponse");
 const { getGreeting } = require("../utils/getGreeting");
-const { database } = require("../database/database");
+const { PrismaClient } = require("@prisma/client");
+const prisma = new PrismaClient();
 
 module.exports = {
   handleSetCommand: async (msg, args) => {
@@ -10,7 +11,11 @@ module.exports = {
       const value = quotedMsg.body;
       const key = args[0] ? args[0].trim() : null;
       if (key) {
-        database[key] = value;
+        await prisma.data.upsert({
+          where: { key },
+          update: { value },
+          create: { key, value },
+        });
         msg.reply(
           `${greeting}${createResponse("SET", `🔑 *${key}* = *${value}* 🎉`)}`
         );
@@ -34,21 +39,31 @@ module.exports = {
     }
   },
 
-  handleGetCommand: (msg, args) => {
+  handleGetCommand: async (msg, args) => {
     const greeting = getGreeting();
     const key = args[0] ? args[0].trim() : null;
-    if (key && database[key]) {
-      msg.reply(
-        `${greeting}${createResponse(
-          "GET",
-          `🔑 *${key}* = *${database[key]}*`
-        )}`
-      );
+    if (key) {
+      const data = await prisma.data.findUnique({
+        where: { key },
+      });
+      if (data) {
+        msg.reply(
+          `${greeting}${createResponse("GET", `🔑 *${key}* = *${data.value}*`)}`
+        );
+      } else {
+        msg.reply(
+          `${greeting}${createResponse(
+            "GET",
+            `❌ *Key "${key}" tidak ditemukan.*`,
+            true
+          )}`
+        );
+      }
     } else {
       msg.reply(
         `${greeting}${createResponse(
           "GET",
-          `❌ *Key "${key}" tidak ditemukan.*`,
+          "❌ *Format salah!* Gunakan: `!get <key>`. 😊",
           true
         )}`
       );
@@ -61,16 +76,35 @@ module.exports = {
       const quotedMsg = await msg.getQuotedMessage();
       const value = quotedMsg.body;
       const key = args[0] ? args[0].trim() : null;
-      if (key && database[key]) {
-        database[key] = value;
-        msg.reply(
-          `${greeting}${createResponse("EDIT", `🔑 *${key}* = *${value}* 🎉`)}`
-        );
+      if (key) {
+        const existingData = await prisma.data.findUnique({
+          where: { key },
+        });
+        if (existingData) {
+          await prisma.data.update({
+            where: { key },
+            data: { value },
+          });
+          msg.reply(
+            `${greeting}${createResponse(
+              "EDIT",
+              `🔑 *${key}* = *${value}* 🎉`
+            )}`
+          );
+        } else {
+          msg.reply(
+            `${greeting}${createResponse(
+              "EDIT",
+              `❌ *Key "${key}" tidak ditemukan.*`,
+              true
+            )}`
+          );
+        }
       } else {
         msg.reply(
           `${greeting}${createResponse(
             "EDIT",
-            `❌ *Key "${key}" tidak ditemukan.*`,
+            "❌ *Format salah!* Gunakan: `!edit <key>` dan reply pesan untuk value. 😊",
             true
           )}`
         );
@@ -86,34 +120,51 @@ module.exports = {
     }
   },
 
-  handleDeleteCommand: (msg, args) => {
+  handleDeleteCommand: async (msg, args) => {
     const greeting = getGreeting();
     const keyToDelete = args[0] ? args[0].trim() : null;
-    if (keyToDelete && database[keyToDelete]) {
-      delete database[keyToDelete];
-      msg.reply(
-        `${greeting}${createResponse(
-          "DELETE",
-          `🗑️ *Key "${keyToDelete}" berhasil dihapus!* ✨`
-        )}`
-      );
+    if (keyToDelete) {
+      const existingData = await prisma.data.findUnique({
+        where: { key: keyToDelete },
+      });
+      if (existingData) {
+        await prisma.data.delete({
+          where: { key: keyToDelete },
+        });
+        msg.reply(
+          `${greeting}${createResponse(
+            "DELETE",
+            `🗑️ *Key "${keyToDelete}" berhasil dihapus!* ✨`
+          )}`
+        );
+      } else {
+        msg.reply(
+          `${greeting}${createResponse(
+            "DELETE",
+            `❌ *Key "${keyToDelete}" tidak ditemukan.*`,
+            true
+          )}`
+        );
+      }
     } else {
       msg.reply(
         `${greeting}${createResponse(
           "DELETE",
-          `❌ *Key "${keyToDelete}" tidak ditemukan.*`,
+          "❌ *Format salah!* Gunakan: `!delete <key>`. 😊",
           true
         )}`
       );
     }
   },
 
-  handleListCommand: (msg) => {
+  handleListCommand: async (msg) => {
     const greeting = getGreeting();
-    const keys = Object.keys(database);
+    const allData = await prisma.data.findMany();
     const listMessage =
-      keys.length > 0
-        ? `📜 *Daftar Data:*\n${keys.map((key) => `🔑 *${key}*`).join("\n")}`
+      allData.length > 0
+        ? `📜 *Daftar Data:*\n${allData
+            .map((item) => `🔑 *${item.key}* = *${item.value}*`)
+            .join("\n")}`
         : `❌ *Tidak ada data yang tersimpan.*`;
     msg.reply(`${greeting}${createResponse("LIST", listMessage)}`);
   },

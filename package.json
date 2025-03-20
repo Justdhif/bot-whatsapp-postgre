@@ -2,22 +2,31 @@
   "name": "whatsapp-bot",
   "version": "1.0.0",
   "main": "index.js",
+  "engines": {
+    "node": "22.x"
+  },
   "scripts": {
     "start": "node index.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "vercel-build": "npx prisma generate && npx prisma migrate deploy"
   },
   "keywords": [],
-  "author": "",
+  "author": "justdhif",
   "license": "ISC",
-  "description": "",
+  "description": "this is my project bot whatsapp",
   "dependencies": {
     "@firebase/firestore": "^4.7.9",
+    "@prisma/client": "^6.5.0",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "firebase": "^11.4.0",
+    "pg": "^8.14.1",
     "qrcode": "^1.5.4",
     "qrcode-terminal": "^0.12.0",
     "whatsapp-web.js": "^1.26.0",
     "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "prisma": "^6.5.0"
   }
 }

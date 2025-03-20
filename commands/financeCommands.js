@@ -1,17 +1,16 @@
 const { createResponse } = require("../utils/createResponse");
 const { getGreeting } = require("../utils/getGreeting");
-const { financeDB } = require("../database/financeDB");
-const {
-  addIncome,
-  addExpense,
-  calculateBalance,
-  createExcelFile,
-} = require("../utils/financeUtils");
+const { PrismaClient } = require("@prisma/client");
+const { MessageMedia } = require("whatsapp-web.js");
+
+const prisma = new PrismaClient();
 
 module.exports = {
-  handleIncomeCommand: (msg, args) => {
+  handleIncomeCommand: async (msg, args) => {
     const greeting = getGreeting();
-    const [amount, ...description] = args[0] ? args[0].split(" ") : null;
+    const amount = args[0] ? parseFloat(args[0]) : null;
+    const description = args.slice(1).join(" "); // Gabungkan semua elemen setelah amount
+
     if (!amount || isNaN(amount)) {
       msg.reply(
         `${greeting}${createResponse(
@@ -21,16 +20,24 @@ module.exports = {
         )}`
       );
     } else {
-      addIncome(parseFloat(amount), description.join(" "));
+      await prisma.finance.create({
+        data: {
+          type: "income",
+          amount: amount,
+          description: description || "No description", // Jika description kosong, isi dengan nilai default
+        },
+      });
       msg.reply(
         `${greeting}✅ Pemasukan sebesar *${amount}* telah ditambahkan.`
       );
     }
   },
 
-  handleExpenseCommand: (msg, args) => {
+  handleExpenseCommand: async (msg, args) => {
     const greeting = getGreeting();
-    const [amount, ...description] = args[0].split(" ");
+    const amount = args[0] ? parseFloat(args[0]) : null;
+    const description = args.slice(1).join(" "); // Gabungkan semua elemen setelah amount
+
     if (!amount || isNaN(amount)) {
       msg.reply(
         `${greeting}${createResponse(
@@ -40,32 +47,49 @@ module.exports = {
         )}`
       );
     } else {
-      addExpense(parseFloat(amount), description.join(" "));
+      await prisma.finance.create({
+        data: {
+          type: "expense",
+          amount: amount,
+          description: description || "No description", // Jika description kosong, isi dengan nilai default
+        },
+      });
       msg.reply(
         `${greeting}✅ Pengeluaran sebesar *${amount}* telah ditambahkan.`
       );
     }
   },
 
-  handleBalanceCommand: (msg) => {
+  handleBalanceCommand: async (msg) => {
     const greeting = getGreeting();
-    const balance = calculateBalance();
+    const financeData = await prisma.finance.findMany();
 
-    // Ambil data income dan expense
-    const incomeList = financeDB.income
+    const totalIncome = financeData
+      .filter((item) => item.type === "income")
+      .reduce((sum, item) => sum + item.amount, 0);
+
+    const totalExpense = financeData
+      .filter((item) => item.type === "expense")
+      .reduce((sum, item) => sum + item.amount, 0);
+
+    const balance = totalIncome - totalExpense;
+
+    const incomeList = financeData
+      .filter((item) => item.type === "income")
       .map(
-        (income, index) =>
-          `${index + 1}. 💰 +${income.amount} (${income.description})`
+        (item, index) =>
+          `${index + 1}. 💰 +${item.amount} (${item.description})`
       )
       .join("\n");
-    const expenseList = financeDB.expenses
+
+    const expenseList = financeData
+      .filter((item) => item.type === "expense")
       .map(
-        (expense, index) =>
-          `${index + 1}. 💸 -${expense.amount} (${expense.description})`
+        (item, index) =>
+          `${index + 1}. 💸 -${item.amount} (${item.description})`
       )
       .join("\n");
 
-    // Buat pesan detail income dan expense
     const balanceDetail = createResponse(
       "BALANCE",
       `💰 *Saldo saat ini: ${balance}*\n\n` +
@@ -80,19 +104,18 @@ module.exports = {
     msg.reply(`${greeting}${balanceDetail}`);
   },
 
-  handleReportCommand: (msg) => {
+  handleReportCommand: async (msg) => {
     const greeting = getGreeting();
-    const filePath = createExcelFile();
+    const filePath = await createExcelFile(); // Buat laporan Excel
     const media = MessageMedia.fromFilePath(filePath);
     msg.reply(media, null, {
       caption: `${greeting}📊 Laporan keuangan telah diunduh.`,
     });
   },
 
-  handleDeleteFinanceCommand: (msg) => {
+  handleDeleteFinanceCommand: async (msg) => {
     const greeting = getGreeting();
-    financeDB.income = [];
-    financeDB.expenses = [];
+    await prisma.finance.deleteMany(); // Hapus semua data keuangan dari PostgreSQL
     msg.reply(
       `${greeting}${createResponse(
         "DELETE FINANCE",

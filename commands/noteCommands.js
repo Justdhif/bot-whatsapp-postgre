@@ -1,6 +1,8 @@
 const { createResponse } = require("../utils/createResponse");
 const { getGreeting } = require("../utils/getGreeting");
-const { noteDB } = require("../database/noteDB");
+const { PrismaClient } = require("@prisma/client");
+
+const prisma = new PrismaClient();
 
 module.exports = {
   handleSetNoteCommand: async (msg, args) => {
@@ -10,7 +12,11 @@ module.exports = {
       const value = quotedMsg.body;
       const key = args[0] ? args[0].trim() : null;
       if (key) {
-        noteDB[key] = value;
+        await prisma.notes.upsert({
+          where: { key },
+          update: { value },
+          create: { key, value },
+        });
         msg.reply(
           `${greeting}${createResponse(
             "SET NOTE",
@@ -37,21 +43,34 @@ module.exports = {
     }
   },
 
-  handleGetNoteCommand: (msg, args) => {
+  handleGetNoteCommand: async (msg, args) => {
     const greeting = getGreeting();
     const noteKey = args[0] ? args[0].trim() : null;
-    if (noteKey && noteDB[noteKey]) {
-      msg.reply(
-        `${greeting}${createResponse(
-          "GET NOTE",
-          `📝 *${noteKey}* = *${noteDB[noteKey]}*`
-        )}`
-      );
+    if (noteKey) {
+      const note = await prisma.notes.findUnique({
+        where: { key: noteKey },
+      });
+      if (note) {
+        msg.reply(
+          `${greeting}${createResponse(
+            "GET NOTE",
+            `📝 *${noteKey}* = *${note.value}*`
+          )}`
+        );
+      } else {
+        msg.reply(
+          `${greeting}${createResponse(
+            "GET NOTE",
+            `❌ *Note "${noteKey}" tidak ditemukan.*`,
+            true
+          )}`
+        );
+      }
     } else {
       msg.reply(
         `${greeting}${createResponse(
           "GET NOTE",
-          `❌ *Note "${noteKey}" tidak ditemukan.*`,
+          "❌ *Format salah!* Gunakan: `!getnote <key>`. 😊",
           true
         )}`
       );
@@ -64,19 +83,35 @@ module.exports = {
       const quotedMsg = await msg.getQuotedMessage();
       const value = quotedMsg.body;
       const noteKeyToEdit = args[0] ? args[0].trim() : null;
-      if (noteKeyToEdit && noteDB[noteKeyToEdit]) {
-        noteDB[noteKeyToEdit] = value;
-        msg.reply(
-          `${greeting}${createResponse(
-            "EDIT NOTE",
-            `📝 *${noteKeyToEdit}* berhasil diubah menjadi: *${value}* 🎉`
-          )}`
-        );
+      if (noteKeyToEdit) {
+        const existingNote = await prisma.notes.findUnique({
+          where: { key: noteKeyToEdit },
+        });
+        if (existingNote) {
+          await prisma.notes.update({
+            where: { key: noteKeyToEdit },
+            data: { value },
+          });
+          msg.reply(
+            `${greeting}${createResponse(
+              "EDIT NOTE",
+              `📝 *${noteKeyToEdit}* berhasil diubah menjadi: *${value}* 🎉`
+            )}`
+          );
+        } else {
+          msg.reply(
+            `${greeting}${createResponse(
+              "EDIT NOTE",
+              `❌ *Note "${noteKeyToEdit}" tidak ditemukan.*`,
+              true
+            )}`
+          );
+        }
       } else {
         msg.reply(
           `${greeting}${createResponse(
             "EDIT NOTE",
-            `❌ *Note "${noteKeyToEdit}" tidak ditemukan.*`,
+            "❌ *Format salah!* Gunakan: `!editnote <key>` dan reply pesan untuk value. 😊",
             true
           )}`
         );
@@ -92,35 +127,50 @@ module.exports = {
     }
   },
 
-  handleDeleteNoteCommand: (msg, args) => {
+  handleDeleteNoteCommand: async (msg, args) => {
     const greeting = getGreeting();
     const noteKeyToDelete = args[0] ? args[0].trim() : null;
-    if (noteKeyToDelete && noteDB[noteKeyToDelete]) {
-      delete noteDB[noteKeyToDelete];
-      msg.reply(
-        `${greeting}${createResponse(
-          "DELETE NOTE",
-          `🗑️ *Note "${noteKeyToDelete}" berhasil dihapus!* ✨`
-        )}`
-      );
+    if (noteKeyToDelete) {
+      const existingNote = await prisma.notes.findUnique({
+        where: { key: noteKeyToDelete },
+      });
+      if (existingNote) {
+        await prisma.notes.delete({
+          where: { key: noteKeyToDelete },
+        });
+        msg.reply(
+          `${greeting}${createResponse(
+            "DELETE NOTE",
+            `🗑️ *Note "${noteKeyToDelete}" berhasil dihapus!* ✨`
+          )}`
+        );
+      } else {
+        msg.reply(
+          `${greeting}${createResponse(
+            "DELETE NOTE",
+            `❌ *Note "${noteKeyToDelete}" tidak ditemukan.*`,
+            true
+          )}`
+        );
+      }
     } else {
       msg.reply(
         `${greeting}${createResponse(
           "DELETE NOTE",
-          `❌ *Note "${noteKeyToDelete}" tidak ditemukan.*`,
+          "❌ *Format salah!* Gunakan: `!deletenote <key>`. 😊",
           true
         )}`
       );
     }
   },
 
-  handleNoteCommand: (msg) => {
+  handleNoteCommand: async (msg) => {
     const greeting = getGreeting();
-    const noteKeys = Object.keys(noteDB);
+    const allNotes = await prisma.notes.findMany();
     const noteListMessage =
-      noteKeys.length > 0
-        ? `📜 *Daftar Note:*\n${noteKeys
-            .map((key) => `📝 *${key}*`)
+      allNotes.length > 0
+        ? `📜 *Daftar Note:*\n${allNotes
+            .map((note) => `📝 *${note.key}* = *${note.value}*`)
             .join("\n")}`
         : `❌ *Tidak ada note yang tersimpan.*`;
     msg.reply(`${greeting}${createResponse("NOTE", noteListMessage)}`);
