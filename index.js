@@ -3,7 +3,7 @@ require("dotenv").config();
 const { Client, MessageMedia } = require("whatsapp-web.js");
 const qrcode = require("qrcode-terminal");
 const express = require("express");
-const PostgresAuth = require("./PostgresAuth"); // Import strategi kustom
+const PostgresAuth = require("./auth/PostgresAuth"); // Import strategi kustom
 
 const app = express();
 const port = process.env.PORT || 3000;
