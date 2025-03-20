@@ -1,17 +1,17 @@
 require("dotenv").config();
 
-const { Client, LocalAuth, MessageMedia } = require("whatsapp-web.js");
+const { Client, MessageMedia } = require("whatsapp-web.js");
 const qrcode = require("qrcode-terminal");
 const express = require("express");
+const PostgresAuth = require("./PostgresAuth"); // Import strategi kustom
 
 const app = express();
 const port = process.env.PORT || 3000;
 
-// Inisialisasi client WhatsApp
+// Inisialisasi client WhatsApp dengan PostgresAuth
+const sessionId = "my-session-id"; // ID session yang unik
 const client = new Client({
-  authStrategy: new LocalAuth({
-    dataPath: process.env.SESSION_DIR || "./session",
-  }),
+  authStrategy: new PostgresAuth(sessionId), // Gunakan PostgresAuth
   puppeteer: {
     headless: true,
     args: [
@@ -51,6 +51,7 @@ client.on("qr", (qr) => {
 client.on("ready", () => {
   console.log("Client is ready!");
   qrCodeData = null;
+  client.authStrategy.saveSession(client.session); // Simpan session ke PostgreSQL
 });
 
 // Ketika menerima pesan
