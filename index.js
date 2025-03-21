@@ -3,7 +3,7 @@ const { Client, LocalAuth } = require("whatsapp-web.js");
 const puppeteer = require("puppeteer");
 const express = require("express");
 const PostgresAuth = require("./auth/PostgresAuth");
-const qrcode = require("qrcode");
+const qrcode = require("qrcode-terminal");
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -40,7 +40,8 @@ async function main() {
 
   client.on("qr", async (qr) => {
     console.log("QR code generated. Silakan scan di browser.");
-    qrCodeData = await qrcode.toDataURL(qr);
+    qrcode.generate(qr, { small: true });
+    qrCodeData = qr;
   });
 
   client.on("ready", () => {
@@ -99,10 +100,16 @@ async function main() {
     }
   });
 
+  app.get("/", (req, res) => {
+    res.send("Selamat datang di JustBot! Ketik `!menu` untuk daftar perintah.");
+  });
+
   app.get("/qr-code", (req, res) => {
     if (!client.info?.wid && qrCodeData) {
       res.send(
-        `<h1>Scan QR Code untuk Login</h1><img src="${qrCodeData}" alt="QR Code" />`
+        `<h1>Scan QR Code untuk Login</h1><img src="https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(
+          qrCodeData
+        )}&size=300x300" alt="QR Code" />`
       );
     } else {
       res.send("<h1>Bot sudah terhubung!</h1>");
