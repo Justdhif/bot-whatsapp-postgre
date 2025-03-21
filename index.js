@@ -46,40 +46,28 @@ async function main() {
     },
   });
 
+  let qrCodeData = null;
+
   // Generate QR code untuk login
-  client.on("qr", async (qrData) => {
+  client.on("qr", (qr) => {
     console.log("QR code generated. Silakan scan di browser.");
-    qrcode.generate(qrData, { small: true }); // Tampilkan QR code di terminal
-
-    // Konversi string QR code menjadi gambar base64
-    try {
-      qrCodeImageUrl = await qr.toDataURL(qrData);
-      console.log("QR Code URL generated successfully");
-    } catch (err) {
-      console.error("Error generating QR code URL:", err);
-    }
-
-    isClientReady = false;
+    qrCodeData = qr; // Simpan data QR code
+    console.log("QR Code Data:", qr); // Log data QR code
   });
 
   // Ketika sudah terautentikasi
   client.on("ready", () => {
     console.log("Client is ready!");
-    isClientReady = true;
-    qrCodeImageUrl = null; // Kosongkan QR code karena sudah tidak diperlukan
+    qrCodeData = null;
     client.authStrategy.saveSession(client.session); // Simpan session ke PostgreSQL
   });
 
   client.on("auth_failure", (msg) => {
     console.error("Authentication failed:", msg);
-    isClientReady = false;
   });
 
   client.on("disconnected", (reason) => {
     console.log("Client was logged out:", reason);
-    isClientReady = false;
-    // Opsional: restart client untuk menghasilkan QR code baru
-    // client.initialize();
   });
 
   // Ketika menerima pesan
@@ -212,53 +200,36 @@ async function main() {
 
   // Buat server web untuk menampilkan QR code
   app.get("/", (req, res) => {
-    if (isClientReady) {
-      // Jika client sudah siap
+    console.log("QR Code Data saat diakses:", qrCodeData); // Log nilai qrCodeData
+    if (!client.info) {
+      if (qrCodeData) {
+        // Gunakan layanan eksternal untuk menghasilkan QR code
+        const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(
+          qrCodeData
+        )}&size=300x300`;
+        res.send(`
+          <h1>Scan QR Code untuk Login</h1>
+          <img src="${qrCodeUrl}" alt="QR Code" />
+          <p>Silakan buka WhatsApp di ponsel Anda, pilih "Linked Devices", dan scan QR code di atas.</p>
+        `);
+      } else {
+        res.send(`
+          <h1>Menunggu QR code...</h1>
+          <p>Silakan tunggu sebentar, QR code akan segera muncul.</p>
+          <p>Jika QR code tidak muncul dalam beberapa menit, coba refresh halaman ini.</p>
+        `);
+      }
+    } else {
       res.send(`
         <h1>Bot sudah terautentikasi!</h1>
         <p>Tidak perlu scan QR code lagi. Bot sedang berjalan.</p>
-        <p><a href="/refresh">Muat ulang WhatsApp client</a></p>
-      `);
-    } else if (qrCodeImageUrl) {
-      // Jika QR code tersedia
-      res.send(`
-        <h1>Scan QR Code untuk Login</h1>
-        <img src="${qrCodeImageUrl}" alt="QR Code" />
-        <p>Silakan buka WhatsApp di ponsel Anda, pilih "Linked Devices", dan scan QR code di atas.</p>
-        <p><a href="/">Refresh halaman</a> jika sudah scan.</p>
-      `);
-    } else {
-      // Jika QR code belum tersedia
-      res.send(`
-        <h1>Menunggu QR code...</h1>
-        <p>Silakan tunggu sebentar, QR code akan segera muncul.</p>
-        <p>Jika QR code tidak muncul dalam beberapa detik, silakan <a href="/">refresh halaman</a> ini.</p>
-        <script>
-          // Auto refresh halaman setiap 5 detik sampai QR code tersedia
-          setTimeout(function() {
-            window.location.reload();
-          }, 5000);
-        </script>
       `);
     }
   });
 
-  // Endpoint tambahan untuk merestart client jika diperlukan
-  app.get("/refresh", (req, res) => {
-    qrCodeImageUrl = null;
-    isClientReady = false;
-
-    // Coba initialize ulang client
-    client
-      .initialize()
-      .then(() => {
-        console.log("WhatsApp client reinitialized.");
-        res.redirect("/");
-      })
-      .catch((error) => {
-        console.error("Error reinitializing WhatsApp client:", error);
-        res.send("Error reinitializing client. Check server logs.");
-      });
+  // Jalankan server web
+  app.listen(port, () => {
+    console.log(`Server web berjalan di http://localhost:${port}`);
   });
 
   // Start client
@@ -270,11 +241,6 @@ async function main() {
     .catch((error) => {
       console.error("Error initializing WhatsApp client:", error);
     });
-
-  // Jalankan server web
-  app.listen(port, () => {
-    console.log(`Server web berjalan di http://localhost:${port}`);
-  });
 }
 
 // Jalankan fungsi utama
