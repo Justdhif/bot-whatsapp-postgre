@@ -1,9 +1,7 @@
 require("dotenv").config();
-const path = require("path");
 const { Client, LocalAuth } = require("whatsapp-web.js");
-const puppeteer = require("puppeteer");
+const qrcode = require("qrcode-terminal");
 const express = require("express");
-const qrcode = require("qrcode");
 
 const databaseCommands = require("./commands/databaseCommands");
 const noteCommands = require("./commands/noteCommands");
@@ -14,36 +12,27 @@ const otherCommands = require("./commands/otherCommands");
 const app = express();
 const port = process.env.PORT || 3000;
 
-async function main() {
-  const sessionPath = path.join("/tmp", ".wwebjs_auth");
-  let qrCodeData = null;
+let qrCodeData = null; // Menyimpan QR Code sementara untuk akses di browser
 
+async function main() {
   const client = new Client({
-    authStrategy: new LocalAuth({ dataPath: sessionPath }),
+    authStrategy: new LocalAuth(), // Gunakan penyimpanan sesi 
     puppeteer: {
-      executablePath: puppeteer.executablePath() || "/usr/bin/chromium-browser",
-      headless: true,
-      args: [
-        "--no-sandbox",
-        "--disable-setuid-sandbox",
-        "--disable-dev-shm-usage",
-        "--disable-accelerated-2d-canvas",
-        "--no-first-run",
-        "--no-zygote",
-        "--single-process",
-        "--disable-gpu",
-      ],
+      args: ["--no-sandbox", "--disable-setuid-sandbox"], // Hindari error root
     },
   });
 
   client.on("qr", async (qr) => {
-    console.log("[BOT] QR code generated. Silakan scan di browser.");
-    qrCodeData = await qrcode.toDataURL(qr);
+    console.log("[BOT] Scan QR Code untuk login:");
+    qrcode.generate(qr, { small: true });
+
+    // Simpan QR Code sebagai string agar bisa diakses dari browser
+    qrCodeData = qr;
   });
 
   client.on("ready", () => {
-    qrCodeData = null;
     console.log("✅ WhatsApp client siap digunakan.");
+    qrCodeData = null; // Hapus QR setelah login sukses
   });
 
   client.on("message", async (msg) => {
@@ -117,18 +106,21 @@ async function main() {
     }
   });
 
-  app.get("/", (req, res) => {
-    res.send("Selamat datang di JustBot! Ketik `!menu` untuk daftar perintah.");
-  });
-
-  app.get("/qr-code", (req, res) => {
-    if (!client.info?.wid && qrCodeData) {
+  // Endpoint untuk mengakses QR Code di browser
+  app.get("/qr", (req, res) => {
+    if (qrCodeData) {
       res.send(
-        `<h1>Scan QR Code untuk Login</h1><img src="${qrCodeData}" alt="QR Code" />`
+        `<img src="https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(
+          qrCodeData
+        )}&size=300x300" alt="QR Code untuk login ke WhatsApp">`
       );
     } else {
-      res.send("<h1>Bot sudah terhubung!</h1>");
+      res.send("✅ Bot sudah terhubung ke WhatsApp.");
     }
+  });
+
+  app.get("/", (req, res) => {
+    res.send("JustBot is running!");
   });
 
   app.listen(port, () =>

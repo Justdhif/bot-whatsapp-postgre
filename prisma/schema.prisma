@@ -40,11 +40,3 @@ model Reminders {
   message   String
   createdAt DateTime @default(now()) @map("created_at")
 }
-
-model WhatsappSessions {
-  id         Int      @id @default(autoincrement())
-  session_id String   @unique
-  data       String
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
-}

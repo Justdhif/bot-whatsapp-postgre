@@ -5,7 +5,9 @@
   "scripts": {
     "start": "node index.js",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "vercel-build": "npx prisma generate && npx prisma migrate deploy"
+    "postinstall": "prisma generate",
+    "migrate": "prisma migrate deploy",
+    "studio": "prisma studio"
   },
   "keywords": [],
   "author": "justdhif",
