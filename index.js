@@ -4,8 +4,6 @@ const puppeteer = require("puppeteer");
 const express = require("express");
 const PostgresAuth = require("./auth/PostgresAuth");
 const qrcode = require("qrcode");
-// Qrcode terminal
-const qrCodeTerminal = require("qrcode-terminal");
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -21,7 +19,9 @@ async function main() {
   let qrCodeData = null;
 
   const client = new Client({
-    authStrategy: new LocalAuth(),
+    authStrategy: new LocalAuth({
+      dataPath: "/tmp/.wwebjs_auth", // Gunakan /tmp untuk session agar bisa di Vercel
+    }),
     puppeteer: {
       executablePath: puppeteer.executablePath(),
       headless: true,
@@ -40,8 +40,6 @@ async function main() {
 
   client.on("qr", async (qr) => {
     console.log("QR code generated. Silakan scan di browser.");
-    // Qrcode terminal
-    qrCodeTerminal.generate(qr, { small: true });
     qrCodeData = await qrcode.toDataURL(qr);
   });
 
