@@ -49,10 +49,9 @@ async function main() {
   let qrCodeData = null;
 
   // Generate QR code untuk login
-  client.on("qr", (qr) => {
-    console.log("QR code generated. Silakan scan di browser.");
-    qrCodeData = qr; // Simpan data QR code
-    console.log("QR Code Data:", qr); // Log data QR code
+  client.on("qr", async (qr) => {
+    console.log("QR Code generated. Scan untuk login.");
+    qrCodeData = await qrcode.toDataURL(qr); // Simpan dalam format base64
   });
 
   // Ketika sudah terautentikasi
@@ -198,32 +197,23 @@ async function main() {
     }
   });
 
-  // Buat server web untuk menampilkan QR code
   app.get("/", (req, res) => {
-    console.log("QR Code Data saat diakses:", qrCodeData); // Log nilai qrCodeData
-    if (!client.info) {
-      if (qrCodeData) {
-        // Gunakan layanan eksternal untuk menghasilkan QR code
-        const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(
-          qrCodeData
-        )}&size=300x300`;
-        res.send(`
-          <h1>Scan QR Code untuk Login</h1>
-          <img src="${qrCodeUrl}" alt="QR Code" />
-          <p>Silakan buka WhatsApp di ponsel Anda, pilih "Linked Devices", dan scan QR code di atas.</p>
-        `);
-      } else {
-        res.send(`
-          <h1>Menunggu QR code...</h1>
-          <p>Silakan tunggu sebentar, QR code akan segera muncul.</p>
-          <p>Jika QR code tidak muncul dalam beberapa menit, coba refresh halaman ini.</p>
-        `);
-      }
+    res.send("Selamat datang di JustBot! 🤖");
+  });
+
+  // Rute untuk menampilkan QR code
+  app.get("/qr-code", (req, res) => {
+    if (qrCodeData) {
+      res.send(`
+      <h1>Scan QR Code untuk Login</h1>
+      <img src="${qrCodeData}" alt="QR Code" />
+      <p>Buka WhatsApp, pilih "Linked Devices", dan scan QR code di atas.</p>
+    `);
     } else {
       res.send(`
-        <h1>Bot sudah terautentikasi!</h1>
-        <p>Tidak perlu scan QR code lagi. Bot sedang berjalan.</p>
-      `);
+      <h1>Bot sudah terhubung!</h1>
+      <p>Anda tidak perlu scan QR code lagi.</p>
+    `);
     }
   });
 
