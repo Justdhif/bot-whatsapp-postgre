@@ -1,0 +1,7 @@
+app = "whatsapp-bot"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PORT = "8080"
