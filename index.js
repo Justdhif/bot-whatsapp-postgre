@@ -48,9 +48,9 @@ async function main() {
   // Generate QR code untuk login
   client.on("qr", (qr) => {
     console.log("QR code generated. Silakan scan di browser.");
-    qrcode.generate(qr, { small: true });
-    qrCodeData = qr;
-    console.log("QR Code Data:", qr); // Log QR code data
+    qrcode.generate(qr, { small: true }); // Tampilkan QR code di terminal
+    qrCodeData = qr; // Simpan data QR code
+    console.log("QR Code Data:", qr); // Log data QR code
   });
 
   // Ketika sudah terautentikasi
@@ -198,6 +198,7 @@ async function main() {
 
   // Buat server web untuk menampilkan QR code
   app.get("/", (req, res) => {
+    console.log("QR Code Data saat diakses:", qrCodeData); // Log nilai qrCodeData
     if (!client.info) {
       if (qrCodeData) {
         res.send(`
@@ -211,6 +212,7 @@ async function main() {
         res.send(`
           <h1>Menunggu QR code...</h1>
           <p>Silakan tunggu sebentar, QR code akan segera muncul.</p>
+          <p>Jika QR code tidak muncul dalam beberapa menit, coba refresh halaman ini.</p>
         `);
       }
     } else {
@@ -227,7 +229,14 @@ async function main() {
   });
 
   // Start client
-  client.initialize();
+  client
+    .initialize()
+    .then(() => {
+      console.log("WhatsApp client initialized successfully.");
+    })
+    .catch((error) => {
+      console.error("Error initializing WhatsApp client:", error);
+    });
 }
 
 // Jalankan fungsi utama
