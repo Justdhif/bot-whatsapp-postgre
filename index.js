@@ -50,6 +50,7 @@ async function main() {
     console.log("QR code generated. Silakan scan di browser.");
     qrcode.generate(qr, { small: true });
     qrCodeData = qr;
+    console.log("QR Code Data:", qr); // Log QR code data
   });
 
   // Ketika sudah terautentikasi
