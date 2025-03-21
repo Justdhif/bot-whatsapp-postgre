@@ -9,6 +9,17 @@ const PostgresAuth = require("./auth/PostgresAuth"); // Import strategi kustom
 const app = express();
 const port = process.env.PORT || 3000;
 
+// Import command handlers
+const databaseCommands = require("./commands/databaseCommands");
+const noteCommands = require("./commands/noteCommands");
+const financeCommands = require("./commands/financeCommands");
+const reminderCommands = require("./commands/reminderCommands");
+const otherCommands = require("./commands/otherCommands");
+
+// Import utils
+const { getGreeting } = require("./utils/getGreeting");
+const { createResponse } = require("./utils/createResponse");
+
 // Fungsi utama yang dijalankan secara async
 async function main() {
   const sessionId = "my-session-id"; // ID session yang unik
@@ -33,17 +44,6 @@ async function main() {
   });
 
   let qrCodeData = null;
-
-  // Import command handlers
-  const databaseCommands = require("./commands/databaseCommands");
-  const noteCommands = require("./commands/noteCommands");
-  const financeCommands = require("./commands/financeCommands");
-  const reminderCommands = require("./commands/reminderCommands");
-  const otherCommands = require("./commands/otherCommands");
-
-  // Import utils
-  const { getGreeting } = require("./utils/getGreeting");
-  const { createResponse } = require("./utils/createResponse");
 
   // Generate QR code untuk login
   client.on("qr", (qr) => {
@@ -203,9 +203,7 @@ async function main() {
       if (qrCodeData) {
         res.send(`
           <h1>Scan QR Code untuk Login</h1>
-          <img src="https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(
-            qrCodeData
-          )}&size=300x300" alt="QR Code" />
+          <img src="${qrCodeData}" alt="QR Code" />
           <p>Silakan buka WhatsApp di ponsel Anda, pilih "Linked Devices", dan scan QR code di atas.</p>
         `);
       } else {
