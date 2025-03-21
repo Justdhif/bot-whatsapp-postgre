@@ -14,6 +14,11 @@ class PostgresAuth {
     console.log("Browser initialized.");
   }
 
+  async afterBrowserInitialized() {
+    console.log("Browser has been initialized.");
+    // Anda bisa menambahkan logika tambahan di sini jika diperlukan
+  }
+
   async afterAuthReady() {
     console.log("Auth ready.");
   }

@@ -60,6 +60,14 @@ async function main() {
     client.authStrategy.saveSession(client.session); // Simpan session ke PostgreSQL
   });
 
+  client.on("auth_failure", (msg) => {
+    console.error("Authentication failed:", msg);
+  });
+
+  client.on("disconnected", (reason) => {
+    console.log("Client was logged out:", reason);
+  });
+
   // Ketika menerima pesan
   client.on("message", async (msg) => {
     const chat = await msg.getChat();
