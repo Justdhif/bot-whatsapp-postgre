@@ -20,7 +20,6 @@ ${formattedContent}
 │ 🤖 *${botName}* - by Justdhif 💡
 ╰────────────────`;
 
-    // Cek apakah gambar tersedia
     if (fs.existsSync(imagePath)) {
       const media = MessageMedia.fromFilePath(imagePath);
       return { text: textResponse, media };
