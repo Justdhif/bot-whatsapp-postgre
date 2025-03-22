@@ -6,25 +6,30 @@ const prisma = new PrismaClient();
 
 module.exports = {
   handleMenuCommand: async (msg) => {
-    const greeting = getGreeting();
-    const menuContent = createResponse(
+    const greeting = await getGreeting(msg);
+    const response = createResponse(
       "MENU",
-      `📌 *Pilih Command Cepat:*\n\n` +
-        `1 📜 Lihat Data (!list)\n` +
-        `2 📝 Lihat Catatan (!note)\n` +
-        `3 💰 Cek Saldo (!balance)\n` +
-        `4 ⏰ Lihat Reminder (!reminders)`
+      `📌 *Pilih Command :*\n\n` +
+        ` 📜 Lihat Data (!list)\n` +
+        ` 📝 Lihat Catatan (!note)\n` +
+        ` 💰 Cek Saldo (!balance)\n` +
+        ` ⏰ Lihat Reminder (!reminders)`
     );
 
-    // Kirim pesan teks biasa
-    await msg.reply(`${greeting}${menuContent}`);
+    if (response.media) {
+      msg.reply(response.media, undefined, {
+        caption: `${greeting}\n${response.text}`,
+      });
+    } else {
+      msg.reply(`${greeting}\n${response.text}`);
+    }
   },
 
-  handleHelpCommand: (msg) => {
-    const greeting = getGreeting();
-    const helpContent = createResponse(
+  handleHelpCommand: async (msg) => {
+    const greeting = await getGreeting(msg);
+    const response = createResponse(
       "HELP",
-      `📌 *Command Database:*\n` +
+      `📌 *Command General:*\n` +
         ` 🔑 \`!set <key>\` - Simpan data\n` +
         ` 🔑 \`!get <key>\` - Ambil data\n` +
         ` 🔑 \`!edit <key>\` - Edit data\n` +
@@ -36,7 +41,7 @@ module.exports = {
         ` 📝 \`!getnote <key>\` - Ambil note\n` +
         ` 📝 \`!editnote <key>\` - Edit note\n` +
         ` 📝 \`!deletenote <key>\` - Hapus note\n\n` +
-        `📌 *Command Keuangan:*\n` +
+        `📌 *Command Keuangan <Khusus>:*\n` +
         ` 💰 \`!income <jumlah> <deskripsi>\` - Tambah pemasukan\n` +
         ` 💰 \`!expense <jumlah> <deskripsi>\` - Tambah pengeluaran\n` +
         ` 💰 \`!balance\` - Lihat saldo\n` +
@@ -51,12 +56,19 @@ module.exports = {
         ` 📤 \`!feedback\` - Kirim feedback\n` +
         ` 🗑️ \`!resetall\` - Reset semua data`
     );
-    msg.reply(`${greeting}${helpContent}`);
+
+    if (response.media) {
+      msg.reply(response.media, undefined, {
+        caption: `${greeting}\n${response.text}`,
+      });
+    } else {
+      msg.reply(`${greeting}\n${response.text}`);
+    }
   },
 
-  handleInfoCommand: (msg) => {
-    const greeting = getGreeting();
-    const infoContent = createResponse(
+  handleInfoCommand: async (msg) => {
+    const greeting = await getGreeting(msg);
+    const response = createResponse(
       "INFO",
       `🤖 Hai perkenalkan aku adalah JustBot yang dirancang untuk kebutuhan MPK OSIS.\n` +
         `Aku berfungsi untuk menyimpan segala keperluan mulai dari jobdesk setiap event, catatan hasil eval, dan lain-lain.\n` +
@@ -64,23 +76,37 @@ module.exports = {
         `Jam kerja bot sudah diatur mulai dari jam 5.00 sampai 10.00 WIB.\n` +
         `Selamat mencoba! ✨`
     );
-    msg.reply(`${greeting}${infoContent}`);
+
+    if (response.media) {
+      msg.reply(response.media, undefined, {
+        caption: `${greeting}\n${response.text}`,
+      });
+    } else {
+      msg.reply(`${greeting}\n${response.text}`);
+    }
   },
 
-  handleFeedbackCommand: (msg) => {
-    const greeting = getGreeting();
+  handleFeedbackCommand: async (msg) => {
+    const greeting = await getGreeting(msg);
     const googleFormLink = "https://bot-advice.netlify.app/";
-    msg.reply(
-      `${greeting}${createResponse(
-        "FEEDBACK",
-        `📝 *Terima kasih atas ketertarikan Anda memberikan feedback!*\n\n` +
-          `Silakan isi formulir di sini untuk memberikan saran atau masukan:\n${googleFormLink}`
-      )}`
+
+    const response = createResponse(
+      "FEEDBACK",
+      `📝 *Terima kasih atas ketertarikan Anda memberikan feedback!*\n\n` +
+        `Silakan isi formulir di sini untuk memberikan saran atau masukan:\n${googleFormLink}`
     );
+
+    if (response.media) {
+      msg.reply(response.media, undefined, {
+        caption: `${greeting}\n${response.text}`,
+      });
+    } else {
+      msg.reply(`${greeting}\n${response.text}`);
+    }
   },
 
   handleResetAllCommand: async (msg) => {
-    const greeting = getGreeting();
+    const greeting = await getGreeting(msg);
 
     try {
       await prisma.data.deleteMany(); // Hapus semua data dari PostgreSQL
@@ -88,21 +114,13 @@ module.exports = {
       await prisma.finance.deleteMany(); // Hapus semua data keuangan dari PostgreSQL
       await prisma.reminders.deleteMany(); // Hapus semua data reminder dari PostgreSQL
 
-      msg.reply(
-        `${greeting}${createResponse(
-          "RESET ALL",
-          "🗑️ *Semua data berhasil direset!* ✨"
-        )}`
-      );
+      const responseText = `${greeting}\n🗑️ *Semua data berhasil direset!* ✨`;
+      msg.reply(responseText);
     } catch (error) {
       console.error("Gagal mereset data:", error);
-      msg.reply(
-        `${greeting}${createResponse(
-          "RESET ALL",
-          "❌ *Gagal mereset data. Silakan coba lagi.*",
-          true
-        )}`
-      );
+
+      const responseText = `${greeting}\n❌ *Gagal mereset data. Silakan coba lagi.*`;
+      msg.reply(responseText);
     }
   },
 };

@@ -6,7 +6,7 @@ const prisma = new PrismaClient();
 
 module.exports = {
   handleSetNoteCommand: async (msg, args) => {
-    const greeting = getGreeting();
+    const greeting = await getGreeting(msg); // Tambahkan await
     if (msg.hasQuotedMsg) {
       const quotedMsg = await msg.getQuotedMessage();
       const value = quotedMsg.body;
@@ -17,68 +17,40 @@ module.exports = {
           update: { value },
           create: { key, value },
         });
-        msg.reply(
-          `${greeting}${createResponse(
-            "SET NOTE",
-            `📝 *${key}* berhasil disimpan di note! 🎉`
-          )}`
-        );
+        msg.reply(`${greeting} 📝 *${key}* berhasil disimpan di note! 🎉`);
       } else {
         msg.reply(
-          `${greeting}${createResponse(
-            "SET NOTE",
-            "❌ *Format salah!* Gunakan: `!setnote <key>` dan reply pesan untuk value. 😊",
-            true
-          )}`
+          `${greeting} ❌ *Format salah!* Gunakan: \`!setnote <key>\` dan reply pesan untuk value. 😊`
         );
       }
     } else {
       msg.reply(
-        `${greeting}${createResponse(
-          "SET NOTE",
-          "❌ *Silakan reply pesan untuk menyimpan value.* 😊",
-          true
-        )}`
+        `${greeting} ❌ *Silakan reply pesan untuk menyimpan value.* 😊`
       );
     }
   },
 
   handleGetNoteCommand: async (msg, args) => {
-    const greeting = getGreeting();
+    const greeting = await getGreeting(msg); // Tambahkan await
     const noteKey = args[0] ? args[0].trim() : null;
     if (noteKey) {
       const note = await prisma.notes.findUnique({
         where: { key: noteKey },
       });
       if (note) {
-        msg.reply(
-          `${greeting}${createResponse(
-            "GET NOTE",
-            `📝 *${noteKey}* = *${note.value}*`
-          )}`
-        );
+        msg.reply(`${greeting} 📝 *${noteKey}* = *${note.value}*`);
       } else {
-        msg.reply(
-          `${greeting}${createResponse(
-            "GET NOTE",
-            `❌ *Note "${noteKey}" tidak ditemukan.*`,
-            true
-          )}`
-        );
+        msg.reply(`${greeting} ❌ *Note "${noteKey}" tidak ditemukan.*`);
       }
     } else {
       msg.reply(
-        `${greeting}${createResponse(
-          "GET NOTE",
-          "❌ *Format salah!* Gunakan: `!getnote <key>`. 😊",
-          true
-        )}`
+        `${greeting} ❌ *Format salah!* Gunakan: \`!getnote <key>\`. 😊`
       );
     }
   },
 
   handleEditNoteCommand: async (msg, args) => {
-    const greeting = getGreeting();
+    const greeting = await getGreeting(msg); // Tambahkan await
     if (msg.hasQuotedMsg) {
       const quotedMsg = await msg.getQuotedMessage();
       const value = quotedMsg.body;
@@ -93,42 +65,27 @@ module.exports = {
             data: { value },
           });
           msg.reply(
-            `${greeting}${createResponse(
-              "EDIT NOTE",
-              `📝 *${noteKeyToEdit}* berhasil diubah menjadi: *${value}* 🎉`
-            )}`
+            `${greeting} 📝 *${noteKeyToEdit}* berhasil diubah menjadi: *${value}* 🎉`
           );
         } else {
           msg.reply(
-            `${greeting}${createResponse(
-              "EDIT NOTE",
-              `❌ *Note "${noteKeyToEdit}" tidak ditemukan.*`,
-              true
-            )}`
+            `${greeting} ❌ *Note "${noteKeyToEdit}" tidak ditemukan.*`
           );
         }
       } else {
         msg.reply(
-          `${greeting}${createResponse(
-            "EDIT NOTE",
-            "❌ *Format salah!* Gunakan: `!editnote <key>` dan reply pesan untuk value. 😊",
-            true
-          )}`
+          `${greeting} ❌ *Format salah!* Gunakan: \`!editnote <key>\` dan reply pesan untuk value. 😊`
         );
       }
     } else {
       msg.reply(
-        `${greeting}${createResponse(
-          "EDIT NOTE",
-          "❌ *Silakan reply pesan untuk mengedit value.* 😊",
-          true
-        )}`
+        `${greeting} ❌ *Silakan reply pesan untuk mengedit value.* 😊`
       );
     }
   },
 
   handleDeleteNoteCommand: async (msg, args) => {
-    const greeting = getGreeting();
+    const greeting = await getGreeting(msg); // Tambahkan await
     const noteKeyToDelete = args[0] ? args[0].trim() : null;
     if (noteKeyToDelete) {
       const existingNote = await prisma.notes.findUnique({
@@ -139,33 +96,22 @@ module.exports = {
           where: { key: noteKeyToDelete },
         });
         msg.reply(
-          `${greeting}${createResponse(
-            "DELETE NOTE",
-            `🗑️ *Note "${noteKeyToDelete}" berhasil dihapus!* ✨`
-          )}`
+          `${greeting} 🗑️ *Note "${noteKeyToDelete}" berhasil dihapus!* ✨`
         );
       } else {
         msg.reply(
-          `${greeting}${createResponse(
-            "DELETE NOTE",
-            `❌ *Note "${noteKeyToDelete}" tidak ditemukan.*`,
-            true
-          )}`
+          `${greeting} ❌ *Note "${noteKeyToDelete}" tidak ditemukan.*`
         );
       }
     } else {
       msg.reply(
-        `${greeting}${createResponse(
-          "DELETE NOTE",
-          "❌ *Format salah!* Gunakan: `!deletenote <key>`. 😊",
-          true
-        )}`
+        `${greeting} ❌ *Format salah!* Gunakan: \`!deletenote <key>\`. 😊`
       );
     }
   },
 
   handleNoteCommand: async (msg) => {
-    const greeting = getGreeting();
+    const greeting = await getGreeting(msg); // Tambahkan await
     const allNotes = await prisma.notes.findMany();
     const noteListMessage =
       allNotes.length > 0
@@ -173,6 +119,15 @@ module.exports = {
             .map((note) => `📝 *${note.key}* = *${note.value}*`)
             .join("\n")}`
         : `❌ *Tidak ada note yang tersimpan.*`;
-    msg.reply(`${greeting}${createResponse("NOTE", noteListMessage)}`);
+
+    const response = createResponse("NOTE", noteListMessage);
+
+    if (response.media) {
+      msg.reply(response.media, undefined, {
+        caption: `${greeting}\n${response.text}`,
+      });
+    } else {
+      msg.reply(`${greeting}\n${response.text}`);
+    }
   },
 };

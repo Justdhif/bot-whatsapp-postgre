@@ -8,6 +8,7 @@ const noteCommands = require("./commands/noteCommands");
 const financeCommands = require("./commands/financeCommands");
 const reminderCommands = require("./commands/reminderCommands");
 const otherCommands = require("./commands/otherCommands");
+const loginCommands = require("./commands/loginCommands");
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -16,7 +17,7 @@ let qrCodeData = null; // Menyimpan QR Code sementara untuk akses di browser
 
 async function main() {
   const client = new Client({
-    authStrategy: new LocalAuth(), // Gunakan penyimpanan sesi 
+    authStrategy: new LocalAuth(), // Gunakan penyimpanan sesi
     puppeteer: {
       args: ["--no-sandbox", "--disable-setuid-sandbox"], // Hindari error root
     },
@@ -37,6 +38,11 @@ async function main() {
 
   client.on("message", async (msg) => {
     try {
+      // Cek apakah pesan diawali dengan "!"
+      if (!msg.body.startsWith("!")) {
+        return; // Abaikan pesan jika tidak diawali dengan "!"
+      }
+
       const commands = {
         "!menu": () => otherCommands.handleMenuCommand(msg),
         "!help": () => otherCommands.handleHelpCommand(msg),
@@ -63,6 +69,7 @@ async function main() {
             msg,
             msg.body.split(" ").slice(1)
           ),
+        "!note": () => noteCommands.handleNoteCommand(msg),
         "!income": () =>
           financeCommands.handleIncomeCommand(
             msg,
@@ -90,6 +97,15 @@ async function main() {
         "!info": () => otherCommands.handleInfoCommand(msg),
         "!feedback": () => otherCommands.handleFeedbackCommand(msg),
         "!resetall": () => otherCommands.handleResetAllCommand(msg),
+        "!login": () => loginCommands.handleLoginCommand(msg),
+        "!code": () =>
+          loginCommands.handleCodeCommand(msg, msg.body.split(" ")),
+        "!logout": () => loginCommands.handleLogoutCommand(msg),
+        "!username": () =>
+          loginCommands.handleUsernameCommand(msg, msg.body.split(" ")),
+        "!listuser": () => loginCommands.handleListUserCommand(msg),
+        "!deleteuser": () =>
+          loginCommands.handleDeleteUserCommand(msg, msg.body.split(" ")),
       };
 
       const command = msg.body.split(" ")[0];
@@ -97,7 +113,7 @@ async function main() {
         commands[command]();
       } else {
         msg.reply(
-          "❌ Perintah tidak dikenali. Ketik `!menu` untuk daftar perintah."
+          "❌ Perintah tidak dikenali. Ketik `!menu` untuk daftar perintah atau `!help` untuk bantuan."
         );
       }
     } catch (error) {

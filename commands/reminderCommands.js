@@ -6,14 +6,10 @@ const prisma = new PrismaClient();
 
 module.exports = {
   handleRemindCommand: async (msg, args) => {
-    const greeting = getGreeting();
+    const greeting = await getGreeting(msg);
     if (args.length < 6) {
       msg.reply(
-        `${greeting}${createResponse(
-          "REMIND",
-          "❌ *Format salah!* Gunakan: `!remind <tanggal> <bulan> <tahun> <jam> <menit> <pesan>`. 😊",
-          true
-        )}`
+        `${greeting}\n❌ *Format salah!*\nGunakan: \`!remind <tanggal> <bulan> <tahun> <jam> <menit> <pesan>\`. 😊`
       );
     } else {
       const [date, month, year, hour, minute, ...messageParts] = args;
@@ -31,18 +27,15 @@ module.exports = {
       });
 
       msg.reply(
-        `${greeting}${createResponse(
-          "REMIND",
-          `⏰ *Reminder berhasil ditambahkan!*\n` +
-            `📅 Waktu: *${reminderDate.toLocaleString()}*\n` +
-            `📝 Pesan: *${message}*`
-        )}`
+        `${greeting}\n✅ *Reminder berhasil ditambahkan!*\n\n` +
+          `📅 *Waktu:* ${reminderDate.toLocaleString()}\n` +
+          `📝 *Pesan:* ${message}`
       );
     }
   },
 
   handleRemindersCommand: async (msg) => {
-    const greeting = getGreeting();
+    const greeting = await getGreeting(msg);
     const reminders = await prisma.reminders.findMany(); // Ambil semua reminder dari PostgreSQL
 
     // Format daftar reminder
@@ -58,24 +51,26 @@ module.exports = {
             .join("\n\n")
         : "❌ *Tidak ada reminder yang tersimpan.*";
 
-    msg.reply(
-      `${greeting}${createResponse(
-        "REMINDERS",
-        `📅 *Daftar Reminder:*\n${reminderList}`
-      )}`
+    const response = createResponse(
+      "REMINDERS",
+      `📅 *Daftar Reminder:*\n${reminderList}`
     );
+
+    if (response.media) {
+      msg.reply(response.media, undefined, {
+        caption: `${greeting}\n${response.text}`,
+      });
+    } else {
+      msg.reply(`${greeting}\n${response.text}`);
+    }
   },
 
   handleDeleteRemindCommand: async (msg, args) => {
-    const greeting = getGreeting();
+    const greeting = await getGreeting(msg);
     const reminderMessage = args.join(" ");
     if (!reminderMessage) {
       msg.reply(
-        `${greeting}${createResponse(
-          "DELETE REMIND",
-          "❌ *Format salah!* Gunakan: `!deleteremind <pesan/nama reminder>`.",
-          true
-        )}`
+        `${greeting}\n❌ *Format salah!*\nGunakan: \`!deleteremind <pesan/nama reminder>\`.`
       );
       return;
     }
@@ -92,11 +87,7 @@ module.exports = {
 
     if (!reminderToDelete) {
       msg.reply(
-        `${greeting}${createResponse(
-          "DELETE REMIND",
-          `❌ *Reminder dengan pesan/nama "${reminderMessage}" tidak ditemukan.*`,
-          true
-        )}`
+        `${greeting}\n❌ *Reminder dengan pesan/nama "${reminderMessage}" tidak ditemukan.*`
       );
     } else {
       // Hapus reminder dari PostgreSQL
@@ -105,14 +96,9 @@ module.exports = {
       });
 
       msg.reply(
-        `${greeting}${createResponse(
-          "DELETE REMIND",
-          `🗑️ *Reminder berhasil dihapus!*\n` +
-            `⏰ Waktu: *${new Date(
-              reminderToDelete.date
-            ).toLocaleString()}*\n` +
-            `📝 Pesan: *${reminderToDelete.message}*`
-        )}`
+        `${greeting}\n🗑️ *Reminder berhasil dihapus!*\n\n` +
+          `⏰ *Waktu:* ${new Date(reminderToDelete.date).toLocaleString()}\n` +
+          `📝 *Pesan:* ${reminderToDelete.message}`
       );
     }
   },
