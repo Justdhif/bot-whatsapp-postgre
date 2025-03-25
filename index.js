@@ -1,148 +1,129 @@
 require("dotenv").config();
-const { Client, LocalAuth } = require("whatsapp-web.js");
-const qrcode = require("qrcode-terminal");
 const express = require("express");
+const qrcode = require("qrcode-terminal");
+const { Client, LocalAuth } = require("whatsapp-web.js");
 
+// Import command handlers
 const databaseCommands = require("./commands/databaseCommands");
 const noteCommands = require("./commands/noteCommands");
 const financeCommands = require("./commands/financeCommands");
-const reminderCommands = require("./commands/reminderCommands");
 const otherCommands = require("./commands/otherCommands");
 const loginCommands = require("./commands/loginCommands");
+const stickerCommands = require("./commands/stickerCommands");
+const todoCommands = require("./commands/todoCommands");
 
+// Setup Express server
 const app = express();
 const port = process.env.PORT || 3000;
+let qrCodeData = null;
 
-let qrCodeData = null; // Menyimpan QR Code sementara untuk akses di browser
+// Initialize WhatsApp Client
+const client = new Client({
+  authStrategy: new LocalAuth(),
+  puppeteer: { args: ["--no-sandbox", "--disable-setuid-sandbox"] },
+});
 
-async function main() {
-  const client = new Client({
-    authStrategy: new LocalAuth(), // Gunakan penyimpanan sesi
-    puppeteer: {
-      args: ["--no-sandbox", "--disable-setuid-sandbox"], // Hindari error root
-    },
-  });
+// Handle QR Code
+client.on("qr", (qr) => {
+  console.log("[BOT] Scan QR Code untuk login:");
+  qrcode.generate(qr, { small: true });
+  qrCodeData = qr;
+});
 
-  client.on("qr", async (qr) => {
-    console.log("[BOT] Scan QR Code untuk login:");
-    qrcode.generate(qr, { small: true });
+client.on("ready", () => {
+  console.log("✅ WhatsApp client siap digunakan.");
+  qrCodeData = null;
+});
 
-    // Simpan QR Code sebagai string agar bisa diakses dari browser
-    qrCodeData = qr;
-  });
+// Command Handler
+client.on("message", async (msg) => {
+  try {
+    if (!msg.body.startsWith("!")) return;
+    const args = msg.body.split(" ").slice(1);
+    const command = msg.body.split(" ")[0];
 
-  client.on("ready", () => {
-    console.log("✅ WhatsApp client siap digunakan.");
-    qrCodeData = null; // Hapus QR setelah login sukses
-  });
+    const commands = {
+      // General Commands
+      "!menu": () => otherCommands.handleMenuCommand(msg),
+      "!help": () => otherCommands.handleHelpCommand(msg),
+      "!info": () => otherCommands.handleInfoCommand(msg),
+      "!feedback": () => otherCommands.handleFeedbackCommand(msg),
+      "!Chacabot": () => otherCommands.handleSecretCommand(msg),
+      "!resetall": () => otherCommands.handleResetAllCommand(msg),
+      "!archive": () => otherCommands.handleArchiveCommand(msg),
+      "!restore": () => otherCommands.handleRestoreCommand(msg, args),
 
-  client.on("message", async (msg) => {
-    try {
-      // Cek apakah pesan diawali dengan "!"
-      if (!msg.body.startsWith("!")) {
-        return; // Abaikan pesan jika tidak diawali dengan "!"
-      }
+      // Database Commands
+      "!set": () => databaseCommands.handleSetCommand(msg, args),
+      "!get": () => databaseCommands.handleGetCommand(msg, args),
+      "!delete": () => databaseCommands.handleDeleteCommand(msg, args),
+      "!list": () => databaseCommands.handleListCommand(msg),
 
-      const commands = {
-        "!menu": () => otherCommands.handleMenuCommand(msg),
-        "!help": () => otherCommands.handleHelpCommand(msg),
-        "!set": () =>
-          databaseCommands.handleSetCommand(msg, msg.body.split(" ").slice(1)),
-        "!get": () =>
-          databaseCommands.handleGetCommand(msg, msg.body.split(" ").slice(1)),
-        "!edit": () =>
-          databaseCommands.handleEditCommand(msg, msg.body.split(" ").slice(1)),
-        "!delete": () =>
-          databaseCommands.handleDeleteCommand(
-            msg,
-            msg.body.split(" ").slice(1)
-          ),
-        "!list": () => databaseCommands.handleListCommand(msg),
-        "!setnote": () =>
-          noteCommands.handleSetNoteCommand(msg, msg.body.split(" ").slice(1)),
-        "!getnote": () =>
-          noteCommands.handleGetNoteCommand(msg, msg.body.split(" ").slice(1)),
-        "!editnote": () =>
-          noteCommands.handleEditNoteCommand(msg, msg.body.split(" ").slice(1)),
-        "!deletenote": () =>
-          noteCommands.handleDeleteNoteCommand(
-            msg,
-            msg.body.split(" ").slice(1)
-          ),
-        "!note": () => noteCommands.handleNoteCommand(msg),
-        "!income": () =>
-          financeCommands.handleIncomeCommand(
-            msg,
-            msg.body.split(" ").slice(1)
-          ),
-        "!expense": () =>
-          financeCommands.handleExpenseCommand(
-            msg,
-            msg.body.split(" ").slice(1)
-          ),
-        "!balance": () => financeCommands.handleBalanceCommand(msg),
-        "!report": () => financeCommands.handleReportCommand(msg),
-        "!deletefinance": () => financeCommands.handleDeleteFinanceCommand(msg),
-        "!remind": () =>
-          reminderCommands.handleRemindCommand(
-            msg,
-            msg.body.split(" ").slice(1)
-          ),
-        "!reminders": () => reminderCommands.handleRemindersCommand(msg),
-        "!deleteremind": () =>
-          reminderCommands.handleDeleteRemindCommand(
-            msg,
-            msg.body.split(" ").slice(1)
-          ),
-        "!info": () => otherCommands.handleInfoCommand(msg),
-        "!feedback": () => otherCommands.handleFeedbackCommand(msg),
-        "!resetall": () => otherCommands.handleResetAllCommand(msg),
-        "!login": () => loginCommands.handleLoginCommand(msg),
-        "!code": () =>
-          loginCommands.handleCodeCommand(msg, msg.body.split(" ")),
-        "!logout": () => loginCommands.handleLogoutCommand(msg),
-        "!username": () =>
-          loginCommands.handleUsernameCommand(msg, msg.body.split(" ")),
-        "!listuser": () => loginCommands.handleListUserCommand(msg),
-        "!deleteuser": () =>
-          loginCommands.handleDeleteUserCommand(msg, msg.body.split(" ")),
-      };
+      // Notes Commands
+      "!setnote": () => noteCommands.handleSetNoteCommand(msg, args),
+      "!getnote": () => noteCommands.handleGetNoteCommand(msg, args),
+      "!deletenote": () => noteCommands.handleDeleteNoteCommand(msg, args),
+      "!note": () => noteCommands.handleListNoteCommand(msg),
 
-      const command = msg.body.split(" ")[0];
-      if (commands[command]) {
-        commands[command]();
-      } else {
-        msg.reply(
-          "❌ Perintah tidak dikenali. Ketik `!menu` untuk daftar perintah atau `!help` untuk bantuan."
-        );
-      }
-    } catch (error) {
-      console.error("[ERROR] Gagal memproses pesan:", error);
-      msg.reply("❌ Terjadi kesalahan saat memproses perintah.");
-    }
-  });
+      // Finance Commands
+      "!income": () => financeCommands.handleIncomeCommand(msg, args),
+      "!expense": () => financeCommands.handleExpenseCommand(msg, args),
+      "!balance": () => financeCommands.handleBalanceCommand(msg),
+      "!report": () => financeCommands.handleReportCommand(msg),
+      "!deletefinance": () => financeCommands.handleDeleteFinanceCommand(msg),
 
-  // Endpoint untuk mengakses QR Code di browser
-  app.get("/qr", (req, res) => {
-    if (qrCodeData) {
-      res.send(
-        `<img src="https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(
-          qrCodeData
-        )}&size=300x300" alt="QR Code untuk login ke WhatsApp">`
-      );
+      // To-Do Commands
+      "!todo": () => todoCommands.handleListTodoCommand(msg),
+      "!addtodo": () => todoCommands.handleAddTodoCommand(msg, args),
+      "!edittodo": () => todoCommands.handleEditTodoCommand(msg, args),
+      "!donetodo": () => todoCommands.handleCompleteTodoCommand(msg, args),
+      "!deletetodo": () => todoCommands.handleDeleteTodoCommand(msg, args),
+
+      // Login Commands
+      "!login": () => loginCommands.handleLoginCommand(msg),
+      "!code": () => loginCommands.handleCodeCommand(msg, args),
+      "!logout": () => loginCommands.handleLogoutCommand(msg),
+      "!username": () => loginCommands.handleUsernameCommand(msg, args),
+      "!listuser": () => loginCommands.handleListUserCommand(msg),
+      "!deleteuser": () => loginCommands.handleDeleteUserCommand(msg, args),
+
+      // Sticker Commands
+      "!brat": () => stickerCommands.handleBratCommand(msg, args),
+    };
+
+    if (commands[command]) {
+      commands[command]();
     } else {
-      res.send("✅ Bot sudah terhubung ke WhatsApp.");
+      msg.reply("❌ Perintah tidak dikenali. Ketik `!menu` untuk daftar perintah atau `!help` untuk bantuan.");
     }
-  });
+  } catch (error) {
+    console.error("[ERROR] Gagal memproses pesan:", error);
+    msg.reply("❌ Terjadi kesalahan saat memproses perintah.");
+  }
+});
 
-  app.get("/", (req, res) => {
-    res.send("JustBot is running!");
-  });
+// Express API Routes
+app.get("/qr", (req, res) => {
+  if (qrCodeData) {
+    res.send(
+      `<img src="https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(qrCodeData)}&size=300x300" alt="QR Code untuk login ke WhatsApp">`
+    );
+  } else {
+    res.send("✅ Bot sudah terhubung ke WhatsApp.");
+  }
+});
 
-  app.listen(port, () =>
-    console.log(`🚀 Server berjalan di http://localhost:${port}`)
-  );
+app.get("/", (req, res) => {
+  res.send("JustBot is running!");
+});
 
+app.listen(port, () => {
+  console.log(`[BOT] Bot berjalan di port ${port}.`);
+});
+
+// Start Express Server
+// Initialize WhatsApp Client
+async function startClient() {
   try {
     await client.initialize();
   } catch (error) {
@@ -150,4 +131,4 @@ async function main() {
   }
 }
 
-main().catch((error) => console.error("❌ Error saat memulai bot:", error));
+startClient().catch((error) => console.error("❌ Error saat memulai bot:", error));

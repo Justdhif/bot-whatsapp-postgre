@@ -14,7 +14,7 @@ datasource db {
 }
 
 model User {
-  id        Int      @id @default(autoincrement())
+  id        String   @id @default(uuid())
   phone     String   @unique
   username  String?
   isLoggedIn Boolean  @default(false)
@@ -25,6 +25,7 @@ model User {
 model Data {
   key       String   @id
   value     String?
+  isDeleted Boolean  @default(false)
   createdAt DateTime @default(now()) @map("created_at")
 }
 
@@ -33,6 +34,7 @@ model Finance {
   type        String   // 'income' atau 'expense'
   amount      Float
   description String?
+  isDeleted Boolean  @default(false)
   createdAt   DateTime @default(now()) @map("created_at")
 }
 
@@ -40,12 +42,21 @@ model Notes {
   id        Int      @id @default(autoincrement())
   key       String   @unique
   value     String?
+  isDeleted Boolean  @default(false)
   createdAt DateTime @default(now()) @map("created_at")
 }
 
-model Reminders {
-  id        Int      @id @default(autoincrement())
-  date      DateTime
-  message   String
-  createdAt DateTime @default(now()) @map("created_at")
+model Todo {
+  id          Int      @id @default(autoincrement())
+  userId      String   @map("user_id")
+  task        String
+  priority    String   @default("medium")
+  isCompleted Boolean  @default(false) @map("is_completed")
+  isDeleted Boolean  @default(false)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  completedAt DateTime?
+
+  @@index([userId], name: "idx_user_id")
+  @@map("todos")
 }

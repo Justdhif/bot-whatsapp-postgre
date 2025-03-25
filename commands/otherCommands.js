@@ -1,126 +1,189 @@
-const { createResponse } = require("../utils/createResponse");
-const { getGreeting } = require("../utils/getGreeting");
 const { PrismaClient } = require("@prisma/client");
+const { sendReply } = require("../utils/sendReply");
 
 const prisma = new PrismaClient();
 
+// 📌 Menu utama
+const handleMenuCommand = (msg) => {
+  sendReply(
+    msg,
+    "📌 *MENU UTAMA*",
+    `✅ *Pilih Command:*\n\n` +
+      `📋 To-Do List (!todo)\n` +
+      `📜 Catatan (!note)\n` +
+      `💰 Keuangan (!balance)\n` +
+      `⏰ Reminder (!reminders)\n` +
+      `📦 Arsip (!archive)\n` + // ✅ Menambahkan fitur arsip
+      `❓ Bantuan (!help)`
+  );
+};
+
+// ℹ️ Bantuan
+const handleHelpCommand = (msg) => {
+  sendReply(
+    msg,
+    "❓ *BANTUAN*",
+    `🔹 *General Commands:*\n` +
+      `  - ℹ️ !info → Info tentang bot\n` +
+      `  - 📝 !feedback → Kirim masukan\n` +
+      `  - 🗑️ !resetall → Reset semua data\n\n` +
+      `📋 *To-Do List:*\n` +
+      `  - ✍️ !addtodo [tugas] → Tambah tugas\n` +
+      `  - ✅ !donetodo [tugas] → Tandai selesai\n` +
+      `  - ❌ !deletetodo [tugas] → Hapus tugas\n\n` +
+      `📜 *Catatan:*\n` +
+      `  - 📝 !setnote [key] → Simpan catatan\n` +
+      `  - 📖 !getnote [key] → Ambil catatan\n` +
+      `  - 🗑️ !deletenote [key] → Hapus catatan\n\n` +
+      `💰 *Keuangan:*\n` +
+      `  - 📥 !income [jumlah] [deskripsi] → Tambah pemasukan\n` +
+      `  - 📤 !expense [jumlah] [deskripsi] → Tambah pengeluaran\n` +
+      `  - 💰 !balance → Cek saldo\n` +
+      `  - 📊 !report → Laporan Excel\n\n` +
+      `📦 *Arsip:*\n` +
+      `  - 📜 !archive → Lihat data yang dihapus\n` +
+      `  - 🔄 !restore [kategori] [nama] → Pulihkan data\n\n` +
+      `💬 *Lainnya:*\n` +
+      `  - 🔖 !brat → Buat stiker teks\n`
+  );
+};
+
+// ℹ️ Info Bot
+const handleInfoCommand = (msg) => {
+  sendReply(
+    msg,
+    "🤖 *CHACA BOT - SOLUSI ANAK MPK OSIS*",
+    `Halo! Aku *Chaca Bot*, asisten andalan MPK OSIS! 🎓✨\n\n` +
+      `📌 Aku siap membantumu mengelola jobdesk, mencatat evaluasi, mengatur keuangan, membuat to-do list, & mengingatkan agenda penting!\n` +
+      `🚀 Gunakan *!help* untuk melihat semua fitur keren yang bisa aku lakukan.`
+  );
+};
+
+// 📝 Feedback
+const handleFeedbackCommand = (msg) => {
+  sendReply(
+    msg,
+    "📝 *FEEDBACK*",
+    `Terima kasih atas masukan Anda! 🙏\nSilakan isi di sini:\nhttps://bot-advice.netlify.app/`
+  );
+};
+
+// 🗝️ Secret Command
+const handleSecretCommand = (msg) => {
+  msg.reply(
+    `🗝️ *RAHASIA PENCIPTA BOT*\n
+Mungkin bagi sebagian orang, bot ini hanyalah sebuah alat.
+Namun, bagiku, setiap baris kode yang kutulis adalah bukti dari sesuatu yang lebih besar.\n
+💬 "Bot ini dibuat sebagai bentuk keseriusanku saat memiliki perasaan terhadap seseorang. 
+Setiap fitur yang kutambahkan mencerminkan usahaku untuk menjadi lebih baik, untuk menunjukkan bahwa aku peduli.
+Mungkin dia tak akan pernah tahu, atau mungkin ini hanya akan menjadi kisah yang tersimpan di balik layar.
+Tapi bagiku, ini adalah caraku mengungkapkan sesuatu yang sulit diucapkan dengan kata-kata."\n
+🖤 *Dia adalah orang terakhir yang menerima semua effort ini, sampai aku bertemu dengan seseorang yang benar-benar serius.*\n
+💙 *- Pembuat Chaca Bot*`
+  );
+};
+
+// 🗑️ Reset Semua Data
+const handleResetAllCommand = async (msg) => {
+  try {
+    // Hapus semua data yang sudah diarsipkan (isDeleted: true)
+    await prisma.$transaction([
+      prisma.data.deleteMany({ where: { isDeleted: true } }),
+      prisma.notes.deleteMany({ where: { isDeleted: true } }),
+      prisma.finance.deleteMany({ where: { isDeleted: true } }),
+      prisma.todo.deleteMany({ where: { isDeleted: true } }),
+    ]);
+
+    msg.reply(
+      "🗑️ *Semua data yang diarsipkan telah dihapus secara permanen!* ❌"
+    );
+  } catch (error) {
+    console.error("❌ Gagal menghapus data yang diarsipkan:", error);
+    msg.reply("❌ *Gagal menghapus data yang diarsipkan. Coba lagi!*");
+  }
+};
+
+// 📦 Lihat Arsip
+const handleArchiveCommand = async (msg) => {
+  const archived = await prisma.data.findMany({ where: { isDeleted: true } });
+  const archivedNotes = await prisma.notes.findMany({
+    where: { isDeleted: true },
+  });
+  const archivedTodo = await prisma.todo.findMany({
+    where: { isDeleted: true },
+  });
+  const archivedFinance = await prisma.finance.findMany({
+    where: { isDeleted: true },
+  });
+
+  const message =
+    `📦 *Data Terarsip:*\n\n` +
+    `🔑 *Data:*\n${
+      archived.map((n) => `- ${n.key}`).join("\n") || "Tidak ada"
+    }\n\n` +
+    `📜 *Catatan:*\n${
+      archivedNotes.map((n) => `- ${n.key}`).join("\n") || "Tidak ada"
+    }\n\n` +
+    `📋 *To-Do List:*\n${
+      archivedTodo.map((t) => `- ${t.task}`).join("\n") || "Tidak ada"
+    }\n\n` +
+    `💰 *Keuangan:*\n${
+      archivedFinance
+        .map((f) => `- ${f.description} (${f.amount})`)
+        .join("\n") || "Tidak ada"
+    }`;
+
+  sendReply(msg, "📦 *ARSIP*", message);
+};
+
+// 🔄 Pulihkan Data
+const handleRestoreCommand = async (msg, args) => {
+  const category = args[0];
+  const name = args.slice(1).join(" ").trim();
+
+  if (!category || !name) {
+    return msg.reply(
+      "❌ *Format salah!*\nGunakan: `!restore [kategori] [nama]`\n📌 Contoh: `!restore note tugas`"
+    );
+  }
+
+  let updated = false;
+
+  if (category === "note") {
+    updated = await prisma.notes.updateMany({
+      where: { key: name, isDeleted: true },
+      data: { isDeleted: false },
+    });
+  } else if (category === "todo") {
+    updated = await prisma.todo.updateMany({
+      where: { task: name, isDeleted: true },
+      data: { isDeleted: false },
+    });
+  } else if (category === "finance") {
+    updated = await prisma.finance.updateMany({
+      where: { description: name, isDeleted: true },
+      data: { isDeleted: false },
+    });
+  } else {
+    return msg.reply(
+      "❌ *Kategori tidak valid!*\nKategori yang tersedia: `note`, `todo`, `finance`."
+    );
+  }
+
+  if (updated.count > 0) {
+    msg.reply(`✅ *${name}* berhasil dipulihkan dari arsip! ✨`);
+  } else {
+    msg.reply(`❌ *${name}* tidak ditemukan dalam arsip.`);
+  }
+};
+
 module.exports = {
-  handleMenuCommand: async (msg) => {
-    const greeting = await getGreeting(msg);
-    const response = createResponse(
-      "MENU",
-      `📌 *Pilih Command :*\n\n` +
-        ` 📜 Lihat Data (!list)\n` +
-        ` 📝 Lihat Catatan (!note)\n` +
-        ` 💰 Cek Saldo (!balance)\n` +
-        ` ⏰ Lihat Reminder (!reminders)`
-    );
-
-    if (response.media) {
-      msg.reply(response.media, undefined, {
-        caption: `${greeting}\n${response.text}`,
-      });
-    } else {
-      msg.reply(`${greeting}\n${response.text}`);
-    }
-  },
-
-  handleHelpCommand: async (msg) => {
-    const greeting = await getGreeting(msg);
-    const response = createResponse(
-      "HELP",
-      `📌 *Command General:*\n` +
-        ` 🔑 \`!set <key>\` - Simpan data\n` +
-        ` 🔑 \`!get <key>\` - Ambil data\n` +
-        ` 🔑 \`!edit <key>\` - Edit data\n` +
-        ` 🔑 \`!delete <key>\` - Hapus data\n` +
-        ` 🔑 \`!list\` - Lihat semua data\n\n` +
-        `📌 *Command Note:*\n` +
-        ` 📝 \`!note\` - Lihat semua note\n` +
-        ` 📝 \`!setnote <key>\` - Simpan note\n` +
-        ` 📝 \`!getnote <key>\` - Ambil note\n` +
-        ` 📝 \`!editnote <key>\` - Edit note\n` +
-        ` 📝 \`!deletenote <key>\` - Hapus note\n\n` +
-        `📌 *Command Keuangan <Khusus>:*\n` +
-        ` 💰 \`!income <jumlah> <deskripsi>\` - Tambah pemasukan\n` +
-        ` 💰 \`!expense <jumlah> <deskripsi>\` - Tambah pengeluaran\n` +
-        ` 💰 \`!balance\` - Lihat saldo\n` +
-        ` 💰 \`!report\` - Unduh laporan keuangan\n` +
-        ` 💰 \`!deletefinance <income/expense> <index>\` - Hapus data keuangan\n\n` +
-        `📌 *Command Reminder:*\n` +
-        ` ⏰ \`!remind <tanggal> <bulan> <tahun> <jam> <menit> <pesan>\` - Atur reminder\n` +
-        ` ⏰ \`!reminders\` - Lihat daftar reminder\n` +
-        ` ⏰ \`!deletereminder <ID>\` - Hapus reminder\n\n` +
-        `📌 *Lainnya:*\n` +
-        ` ℹ️ \`!info\` - Info bot\n` +
-        ` 📤 \`!feedback\` - Kirim feedback\n` +
-        ` 🗑️ \`!resetall\` - Reset semua data`
-    );
-
-    if (response.media) {
-      msg.reply(response.media, undefined, {
-        caption: `${greeting}\n${response.text}`,
-      });
-    } else {
-      msg.reply(`${greeting}\n${response.text}`);
-    }
-  },
-
-  handleInfoCommand: async (msg) => {
-    const greeting = await getGreeting(msg);
-    const response = createResponse(
-      "INFO",
-      `🤖 Hai perkenalkan aku adalah JustBot yang dirancang untuk kebutuhan MPK OSIS.\n` +
-        `Aku berfungsi untuk menyimpan segala keperluan mulai dari jobdesk setiap event, catatan hasil eval, dan lain-lain.\n` +
-        `Kalian bisa ketik \`!help\` untuk melihat detailnya.\n` +
-        `Jam kerja bot sudah diatur mulai dari jam 5.00 sampai 10.00 WIB.\n` +
-        `Selamat mencoba! ✨`
-    );
-
-    if (response.media) {
-      msg.reply(response.media, undefined, {
-        caption: `${greeting}\n${response.text}`,
-      });
-    } else {
-      msg.reply(`${greeting}\n${response.text}`);
-    }
-  },
-
-  handleFeedbackCommand: async (msg) => {
-    const greeting = await getGreeting(msg);
-    const googleFormLink = "https://bot-advice.netlify.app/";
-
-    const response = createResponse(
-      "FEEDBACK",
-      `📝 *Terima kasih atas ketertarikan Anda memberikan feedback!*\n\n` +
-        `Silakan isi formulir di sini untuk memberikan saran atau masukan:\n${googleFormLink}`
-    );
-
-    if (response.media) {
-      msg.reply(response.media, undefined, {
-        caption: `${greeting}\n${response.text}`,
-      });
-    } else {
-      msg.reply(`${greeting}\n${response.text}`);
-    }
-  },
-
-  handleResetAllCommand: async (msg) => {
-    const greeting = await getGreeting(msg);
-
-    try {
-      await prisma.data.deleteMany(); // Hapus semua data dari PostgreSQL
-      await prisma.notes.deleteMany(); // Hapus semua data note dari PostgreSQL
-      await prisma.finance.deleteMany(); // Hapus semua data keuangan dari PostgreSQL
-      await prisma.reminders.deleteMany(); // Hapus semua data reminder dari PostgreSQL
-
-      const responseText = `${greeting}\n🗑️ *Semua data berhasil direset!* ✨`;
-      msg.reply(responseText);
-    } catch (error) {
-      console.error("Gagal mereset data:", error);
-
-      const responseText = `${greeting}\n❌ *Gagal mereset data. Silakan coba lagi.*`;
-      msg.reply(responseText);
-    }
-  },
+  handleMenuCommand,
+  handleHelpCommand,
+  handleInfoCommand,
+  handleFeedbackCommand,
+  handleSecretCommand,
+  handleResetAllCommand,
+  handleArchiveCommand,
+  handleRestoreCommand,
 };

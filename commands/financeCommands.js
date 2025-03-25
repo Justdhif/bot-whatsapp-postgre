@@ -1,147 +1,79 @@
-const { PrismaClient } = require("@prisma/client");
-const { getGreeting } = require("../utils/getGreeting");
-const { createResponse } = require("../utils/createResponse");
-const { createExcelFile } = require("../utils/financeUtils");
 const { MessageMedia } = require("whatsapp-web.js");
+const { PrismaClient } = require("@prisma/client");
+const { sendReply } = require("../utils/sendReply");
+const { checkLogin } = require("../utils/authUtils");
+const {
+  createExcelFile,
+  getBalanceDetails,
+  handleFinanceCommand,
+} = require("../utils/financeUtils");
 
 const prisma = new PrismaClient();
 
-// Fungsi untuk memeriksa apakah pengguna sudah login
-const checkLogin = async (msg) => {
-  const phone = msg.from.endsWith("@g.us")
-    ? msg.author.split("@")[0] // Ambil nomor telepon pengguna jika di grup
-    : msg.from.split("@")[0]; // Ambil nomor telepon pengguna jika di private chat
-  const user = await prisma.user.findUnique({ where: { phone } });
-  return user && user.isLoggedIn;
+// Menambahkan Income
+const handleIncomeCommand = (msg, args) =>
+  handleFinanceCommand(msg, args, "income");
+
+// Menambahkan Expense
+const handleExpenseCommand = (msg, args) =>
+  handleFinanceCommand(msg, args, "expense");
+
+// Menampilkan Balance
+const handleBalanceCommand = async (msg) => {
+  try {
+    const data = await prisma.finance.findMany({
+      where: { isDeleted: false },
+    });
+
+    if (data.length === 0) {
+      return sendReply(msg, "BALANCE", "💰 Tidak ada data keuangan saat ini.");
+    }
+
+    sendReply(msg, "BALANCE", getBalanceDetails(data));
+  } catch (error) {
+    console.error("Balance error:", error);
+    msg.reply("❌ Terjadi kesalahan saat mengambil saldo.");
+  }
+};
+
+// Mengunduh Laporan Keuangan
+const handleReportCommand = async (msg) => {
+  if (!(await checkLogin(msg))) {
+    return msg.reply("❌ Anda harus login terlebih dahulu.");
+  }
+
+  try {
+    const media = MessageMedia.fromFilePath(await createExcelFile());
+    msg.reply(media, null, { caption: "📊 Laporan keuangan telah diunduh." });
+  } catch (error) {
+    console.error("Report error:", error);
+    msg.reply("❌ Gagal membuat laporan keuangan.");
+  }
+};
+
+// Menghapus Semua Data Keuangan
+const handleDeleteFinanceCommand = async (msg) => {
+  if (!(await checkLogin(msg))) {
+    return msg.reply("❌ Anda harus login terlebih dahulu.");
+  }
+
+  try {
+    await prisma.finance.updateMany({
+      where: { isDeleted: false },
+      data: { isDeleted: true },
+    });
+
+    msg.reply("🗑️ Semua data keuangan berhasil dihapus! Saldo sekarang: 0.");
+  } catch (error) {
+    console.error("Delete Finance error:", error);
+    msg.reply("❌ Gagal menghapus data keuangan.");
+  }
 };
 
 module.exports = {
-  handleIncomeCommand: async (msg, args) => {
-    const greeting = await getGreeting(msg); // Tambahkan await
-
-    if (!(await checkLogin(msg))) {
-      msg.reply(`${greeting} ❌ *Anda harus login terlebih dahulu!*`);
-      return;
-    }
-
-    const amount = args[0] ? parseFloat(args[0]) : null;
-    const description = args.slice(1).join(" ") || "No description";
-
-    if (!amount || isNaN(amount)) {
-      msg.reply(
-        `${greeting} ❌ *Format salah!* Gunakan: \`!income <jumlah> <deskripsi>\`. 😊`
-      );
-    } else {
-      await prisma.finance.create({
-        data: { type: "income", amount, description },
-      });
-      msg.reply(
-        `${greeting} ✅ Pemasukan sebesar *${amount}* telah ditambahkan.`
-      );
-    }
-  },
-
-  handleExpenseCommand: async (msg, args) => {
-    const greeting = await getGreeting(msg); // Tambahkan await
-
-    if (!(await checkLogin(msg))) {
-      msg.reply(`${greeting} ❌ *Anda harus login terlebih dahulu!*`);
-      return;
-    }
-
-    const amount = args[0] ? parseFloat(args[0]) : null;
-    const description = args.slice(1).join(" ") || "No description";
-
-    if (!amount || isNaN(amount)) {
-      msg.reply(
-        `${greeting} ❌ *Format salah!* Gunakan: \`!expense <jumlah> <deskripsi>\`. 😊`
-      );
-    } else {
-      await prisma.finance.create({
-        data: { type: "expense", amount, description },
-      });
-      msg.reply(
-        `${greeting} ✅ Pengeluaran sebesar *${amount}* telah ditambahkan.`
-      );
-    }
-  },
-
-  handleBalanceCommand: async (msg) => {
-    const greeting = await getGreeting(msg); // Tambahkan await
-    const financeData = await prisma.finance.findMany();
-
-    const totalIncome = financeData
-      .filter((item) => item.type === "income")
-      .reduce((sum, item) => sum + item.amount, 0);
-
-    const totalExpense = financeData
-      .filter((item) => item.type === "expense")
-      .reduce((sum, item) => sum + item.amount, 0);
-
-    const balance = totalIncome - totalExpense;
-
-    const incomeList = financeData
-      .filter((item) => item.type === "income")
-      .map(
-        (item, index) =>
-          `${index + 1}. 💰 +${item.amount} (${item.description})`
-      )
-      .join("\n");
-
-    const expenseList = financeData
-      .filter((item) => item.type === "expense")
-      .map(
-        (item, index) =>
-          `${index + 1}. 💸 -${item.amount} (${item.description})`
-      )
-      .join("\n");
-
-    const balanceDetail =
-      `💰 *Saldo saat ini: ${balance}*\n\n` +
-      `📥 *Pemasukan (Income):*\n${
-        incomeList || "Tidak ada data pemasukan."
-      }\n\n` +
-      `📤 *Pengeluaran (Expense):*\n${
-        expenseList || "Tidak ada data pengeluaran."
-      }`;
-
-    const response = createResponse("BALANCE", balanceDetail);
-
-    if (response.media) {
-      msg.reply(response.media, undefined, {
-        caption: `${greeting}\n${response.text}`,
-      });
-    } else {
-      msg.reply(`${greeting}\n${response.text}`);
-    }
-  },
-
-  handleReportCommand: async (msg) => {
-    const greeting = await getGreeting(msg); // Tambahkan await
-
-    if (!(await checkLogin(msg))) {
-      msg.reply(`${greeting} ❌ *Anda harus login terlebih dahulu!*`);
-      return;
-    }
-
-    const filePath = await createExcelFile(); // Buat laporan Excel
-    const media = MessageMedia.fromFilePath(filePath);
-    msg.reply(media, null, {
-      caption: `${greeting} 📊 Laporan keuangan telah diunduh.`,
-    });
-  },
-
-  handleDeleteFinanceCommand: async (msg) => {
-    const greeting = await getGreeting(msg); // Tambahkan await
-
-    if (!(await checkLogin(msg))) {
-      msg.reply(`${greeting} ❌ *Anda harus login terlebih dahulu!*`);
-      return;
-    }
-
-    await prisma.finance.deleteMany();
-    msg.reply(
-      `${greeting} 🗑️ *Semua data keuangan berhasil dihapus! Saldo sekarang: 0.* ✨`
-    );
-  },
+  handleIncomeCommand,
+  handleExpenseCommand,
+  handleBalanceCommand,
+  handleReportCommand,
+  handleDeleteFinanceCommand,
 };
