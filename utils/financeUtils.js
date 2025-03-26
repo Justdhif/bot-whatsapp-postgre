@@ -1,5 +1,4 @@
 const { PrismaClient } = require("@prisma/client");
-const { checkLogin } = require("./authUtils");
 const XLSX = require("xlsx");
 const fs = require("fs-extra");
 const path = require("path");
@@ -8,16 +7,12 @@ const prisma = new PrismaClient();
 
 // Menangani pemasukan & pengeluaran
 const handleFinanceCommand = async (msg, args, type) => {
-  if (!(await checkLogin(msg))) {
-    return msg.reply("❌ Anda harus login terlebih dahulu.");
-  }
-
   const amount = parseFloat(args[0]);
   const description = args.slice(1).join(" ") || "Tanpa deskripsi";
 
   if (!amount || isNaN(amount)) {
     return msg.reply(
-      `❌ Format salah!\nGunakan: *!${type} [jumlah] [deskripsi]*\n📌 Contoh: *!${type} 50000 Gaji bulanan*`
+      `❌ Format salah!\nGunakan: *!${type} [jumlah] [desk]*\n📌 Contoh: *!${type} 50000 Gaji bulanan*`
     );
   }
 

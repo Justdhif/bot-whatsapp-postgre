@@ -17,7 +17,6 @@ model User {
   id        String   @id @default(uuid())
   phone     String   @unique
   username  String?
-  isLoggedIn Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }

@@ -8,8 +8,7 @@ const databaseCommands = require("./commands/databaseCommands");
 const noteCommands = require("./commands/noteCommands");
 const financeCommands = require("./commands/financeCommands");
 const otherCommands = require("./commands/otherCommands");
-const loginCommands = require("./commands/loginCommands");
-const stickerCommands = require("./commands/stickerCommands");
+const userCommands = require("./commands/userCommands");
 const todoCommands = require("./commands/todoCommands");
 
 // Setup Express server
@@ -45,7 +44,7 @@ client.on("message", async (msg) => {
     const commands = {
       // General Commands
       "!menu": () => otherCommands.handleMenuCommand(msg),
-      "!help": () => otherCommands.handleHelpCommand(msg),
+      "!help": () => otherCommands.handleHelpCommand(msg, args[0]),
       "!info": () => otherCommands.handleInfoCommand(msg),
       "!feedback": () => otherCommands.handleFeedbackCommand(msg),
       "!Chacabot": () => otherCommands.handleSecretCommand(msg),
@@ -79,22 +78,18 @@ client.on("message", async (msg) => {
       "!donetodo": () => todoCommands.handleCompleteTodoCommand(msg, args),
       "!deletetodo": () => todoCommands.handleDeleteTodoCommand(msg, args),
 
-      // Login Commands
-      "!login": () => loginCommands.handleLoginCommand(msg),
-      "!code": () => loginCommands.handleCodeCommand(msg, args),
-      "!logout": () => loginCommands.handleLogoutCommand(msg),
-      "!username": () => loginCommands.handleUsernameCommand(msg, args),
-      "!listuser": () => loginCommands.handleListUserCommand(msg),
-      "!deleteuser": () => loginCommands.handleDeleteUserCommand(msg, args),
-
-      // Sticker Commands
-      "!brat": () => stickerCommands.handleBratCommand(msg, args),
+      // User Commands
+      "!username": () => userCommands.handleUsernameCommand(msg, args),
+      "!listuser": () => userCommands.handleListUserCommand(msg),
+      "!deleteuser": () => userCommands.handleDeleteUserCommand(msg, args),
     };
 
     if (commands[command]) {
       commands[command]();
     } else {
-      msg.reply("❌ Perintah tidak dikenali. Ketik `!menu` untuk daftar perintah atau `!help` untuk bantuan.");
+      msg.reply(
+        "❌ Perintah tidak dikenali. Ketik `!menu` untuk daftar perintah atau `!help` untuk bantuan."
+      );
     }
   } catch (error) {
     console.error("[ERROR] Gagal memproses pesan:", error);
@@ -106,7 +101,9 @@ client.on("message", async (msg) => {
 app.get("/qr", (req, res) => {
   if (qrCodeData) {
     res.send(
-      `<img src="https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(qrCodeData)}&size=300x300" alt="QR Code untuk login ke WhatsApp">`
+      `<img src="https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(
+        qrCodeData
+      )}&size=300x300" alt="QR Code untuk login ke WhatsApp">`
     );
   } else {
     res.send("✅ Bot sudah terhubung ke WhatsApp.");
@@ -131,4 +128,6 @@ async function startClient() {
   }
 }
 
-startClient().catch((error) => console.error("❌ Error saat memulai bot:", error));
+startClient().catch((error) =>
+  console.error("❌ Error saat memulai bot:", error)
+);

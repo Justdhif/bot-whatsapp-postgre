@@ -1,8 +1,10 @@
 const { PrismaClient } = require("@prisma/client");
-const prisma = new PrismaClient();
 const { sendReply } = require("../utils/sendReply");
 
-// Utility functions
+const prisma = new PrismaClient();
+
+// ====================== 📌 UTILITY FUNCTIONS ======================
+
 const normalizePhoneNumber = (number) => {
   if (!number) return null;
   let normalized = number.replace(/\D/g, "");
@@ -16,7 +18,9 @@ const getSenderNumber = (msg) => {
   return rawNumber ? normalizePhoneNumber(rawNumber.split("@")[0]) : null;
 };
 
-// Tambahkan Tugas
+// ====================== 📋 TO-DO LIST MANAGEMENT ======================
+
+// 📌 Tambah Tugas
 const handleAddTodoCommand = async (msg, args) => {
   const number = getSenderNumber(msg);
   if (!number) return msg.reply("❌ Gagal mengidentifikasi pengguna.");
@@ -47,7 +51,7 @@ const handleAddTodoCommand = async (msg, args) => {
   }
 };
 
-// Menampilkan Daftar Tugas
+// 📜 Menampilkan Daftar Tugas
 const handleListTodoCommand = async (msg) => {
   const number = getSenderNumber(msg);
   if (!number) return;
@@ -67,7 +71,6 @@ const handleListTodoCommand = async (msg) => {
     }
 
     let message = "📋 *To-Do List Anda:*\n\n";
-
     const activeTodos = todos.filter((t) => !t.isCompleted);
     const completedTodos = todos.filter((t) => t.isCompleted);
 
@@ -102,7 +105,7 @@ const handleListTodoCommand = async (msg) => {
   }
 };
 
-// Menandai Selesai
+// ✅ Menandai Selesai
 const handleCompleteTodoCommand = async (msg, args) => {
   const number = getSenderNumber(msg);
   if (!number) return msg.reply("❌ Gagal mengidentifikasi pengguna.");
@@ -119,14 +122,12 @@ const handleCompleteTodoCommand = async (msg, args) => {
         isCompleted: false,
       },
     });
-
     if (!task) return msg.reply(`❌ Tugas "${taskName}" tidak ditemukan.`);
 
     await prisma.todo.update({
       where: { id: task.id },
       data: { isCompleted: true, completedAt: new Date() },
     });
-
     return msg.reply(`✅ Tugas selesai: *${task.task}*`);
   } catch (error) {
     console.error("CompleteTodo error:", error);
@@ -134,7 +135,7 @@ const handleCompleteTodoCommand = async (msg, args) => {
   }
 };
 
-// Menghapus Tugas
+// 🗑️ Menghapus Tugas
 const handleDeleteTodoCommand = async (msg, args) => {
   const number = getSenderNumber(msg);
   if (!number) return msg.reply("❌ Gagal mengidentifikasi pengguna.");
@@ -148,9 +149,9 @@ const handleDeleteTodoCommand = async (msg, args) => {
       where: {
         userId: number,
         task: { equals: taskName, mode: "insensitive" },
+        isDeleted: false,
       },
     });
-
     if (!task) return msg.reply(`❌ Tugas "${taskName}" tidak ditemukan.`);
 
     await prisma.todo.update({
@@ -164,46 +165,13 @@ const handleDeleteTodoCommand = async (msg, args) => {
   }
 };
 
-// Mengedit Tugas
-const handleEditTodoCommand = async (msg, args) => {
-  const number = getSenderNumber(msg);
-  if (!number) return msg.reply("❌ Gagal mengidentifikasi pengguna.");
-  if (!args.length || !args.includes("|"))
-    return msg.reply("❌ Format: !edittodo [nama lama] | [nama baru]");
-
-  const [oldTaskName, newTaskName] = args
-    .join(" ")
-    .split("|")
-    .map((t) => t.trim());
-  if (!oldTaskName || !newTaskName)
-    return msg.reply("❌ Nama tugas lama dan baru harus diisi.");
-
-  try {
-    const task = await prisma.todo.findFirst({
-      where: {
-        userId: number,
-        task: { equals: oldTaskName, mode: "insensitive" },
-      },
-    });
-
-    if (!task) return msg.reply(`❌ Tugas "${oldTaskName}" tidak ditemukan.`);
-
-    await prisma.todo.update({
-      where: { id: task.id },
-      data: { task: newTaskName },
-    });
-
-    return msg.reply(`✏️ Tugas diperbarui: *${newTaskName}*`);
-  } catch (error) {
-    console.error("EditTodo error:", error);
-    return msg.reply("❌ Gagal mengedit tugas.");
-  }
-};
+// ====================== EXPORT MODULE ======================
 
 module.exports = {
   handleAddTodoCommand,
   handleListTodoCommand,
   handleCompleteTodoCommand,
   handleDeleteTodoCommand,
-  handleEditTodoCommand,
 };
+
+// ====================== END OF FILE ======================

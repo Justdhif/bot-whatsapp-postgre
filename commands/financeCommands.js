@@ -1,7 +1,6 @@
 const { MessageMedia } = require("whatsapp-web.js");
 const { PrismaClient } = require("@prisma/client");
 const { sendReply } = require("../utils/sendReply");
-const { checkLogin } = require("../utils/authUtils");
 const {
   createExcelFile,
   getBalanceDetails,
@@ -10,15 +9,15 @@ const {
 
 const prisma = new PrismaClient();
 
-// Menambahkan Income
+// ====================== HANDLE INCOME ======================
 const handleIncomeCommand = (msg, args) =>
   handleFinanceCommand(msg, args, "income");
 
-// Menambahkan Expense
+// ====================== HANDLE EXPENSE ======================
 const handleExpenseCommand = (msg, args) =>
   handleFinanceCommand(msg, args, "expense");
 
-// Menampilkan Balance
+// ====================== HANDLE BALANCE ======================
 const handleBalanceCommand = async (msg) => {
   try {
     const data = await prisma.finance.findMany({
@@ -33,17 +32,17 @@ const handleBalanceCommand = async (msg) => {
   } catch (error) {
     console.error("Balance error:", error);
     msg.reply("❌ Terjadi kesalahan saat mengambil saldo.");
+  } finally {
+    await prisma.$disconnect();
   }
 };
 
-// Mengunduh Laporan Keuangan
+// ====================== HANDLE REPORT ======================
 const handleReportCommand = async (msg) => {
-  if (!(await checkLogin(msg))) {
-    return msg.reply("❌ Anda harus login terlebih dahulu.");
-  }
-
   try {
-    const media = MessageMedia.fromFilePath(await createExcelFile());
+    const filePath = await createExcelFile();
+    const media = MessageMedia.fromFilePath(filePath);
+
     msg.reply(media, null, { caption: "📊 Laporan keuangan telah diunduh." });
   } catch (error) {
     console.error("Report error:", error);
@@ -51,12 +50,8 @@ const handleReportCommand = async (msg) => {
   }
 };
 
-// Menghapus Semua Data Keuangan
+// ====================== HANDLE DELETE FINANCE ======================
 const handleDeleteFinanceCommand = async (msg) => {
-  if (!(await checkLogin(msg))) {
-    return msg.reply("❌ Anda harus login terlebih dahulu.");
-  }
-
   try {
     await prisma.finance.updateMany({
       where: { isDeleted: false },
@@ -67,9 +62,12 @@ const handleDeleteFinanceCommand = async (msg) => {
   } catch (error) {
     console.error("Delete Finance error:", error);
     msg.reply("❌ Gagal menghapus data keuangan.");
+  } finally {
+    await prisma.$disconnect();
   }
 };
 
+// ====================== EXPORT MODULE ======================
 module.exports = {
   handleIncomeCommand,
   handleExpenseCommand,
@@ -77,3 +75,5 @@ module.exports = {
   handleReportCommand,
   handleDeleteFinanceCommand,
 };
+
+// ====================== END OF FILE ======================

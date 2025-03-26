@@ -3,7 +3,7 @@ const { sendReply } = require("../utils/sendReply");
 
 const prisma = new PrismaClient();
 
-// Handler untuk command !set
+// ====================== HANDLE SET ======================
 const handleSetCommand = async (msg, args) => {
   try {
     if (!msg.hasQuotedMsg) {
@@ -30,10 +30,12 @@ const handleSetCommand = async (msg, args) => {
   } catch (error) {
     console.error("SetCommand error:", error);
     return msg.reply("❌ Gagal menyimpan data");
+  } finally {
+    await prisma.$disconnect();
   }
 };
 
-// Handler untuk command !get
+// ====================== HANDLE GET ======================
 const handleGetCommand = async (msg, args) => {
   try {
     const key = args.join(" ").trim();
@@ -55,10 +57,12 @@ const handleGetCommand = async (msg, args) => {
   } catch (error) {
     console.error("GetCommand error:", error);
     return msg.reply("❌ Gagal mengambil data");
+  } finally {
+    await prisma.$disconnect();
   }
 };
 
-// Handler untuk command !delete
+// ====================== HANDLE DELETE ======================
 const handleDeleteCommand = async (msg, args) => {
   try {
     const key = args.join(" ").trim();
@@ -85,10 +89,12 @@ const handleDeleteCommand = async (msg, args) => {
   } catch (error) {
     console.error("DeleteCommand error:", error);
     return msg.reply("❌ Gagal menghapus data");
+  } finally {
+    await prisma.$disconnect();
   }
 };
 
-// Handler untuk command !list
+// ====================== HANDLE LIST ======================
 const handleListCommand = async (msg) => {
   try {
     const allData = await prisma.data.findMany({
@@ -107,12 +113,17 @@ const handleListCommand = async (msg) => {
   } catch (error) {
     console.error("ListCommand error:", error);
     return sendReply(msg, "ERROR", "❌ Gagal mengambil daftar data");
+  } finally {
+    await prisma.$disconnect();
   }
 };
 
+// ====================== EXPORT MODULE ======================
 module.exports = {
   handleSetCommand,
   handleGetCommand,
   handleDeleteCommand,
   handleListCommand,
 };
+
+// ====================== END OF FILE ======================
