@@ -2,6 +2,8 @@ require("dotenv").config();
 const express = require("express");
 const qrcode = require("qrcode-terminal");
 const { Client, LocalAuth } = require("whatsapp-web.js");
+const { PrismaClient } = require("@prisma/client");
+const prisma = new PrismaClient();
 
 // Import command handlers
 const databaseCommands = require("./commands/databaseCommands");
@@ -10,6 +12,15 @@ const financeCommands = require("./commands/financeCommands");
 const otherCommands = require("./commands/otherCommands");
 const userCommands = require("./commands/userCommands");
 const todoCommands = require("./commands/todoCommands");
+
+// Import utility functions
+const {
+  saveUser,
+  handleGroupJoin,
+  handleBotRemoved,
+  handleGroupRejoin,
+  handleNewChat,
+} = require("./utils/chatUtils");
 
 // Setup Express server
 const app = express();
@@ -34,9 +45,28 @@ client.on("ready", () => {
   qrCodeData = null;
 });
 
+// Pada event handlers, ubah menjadi:
+client.on("group_join", async (notification) => {
+  const chat = await notification.getChat();
+  await handleGroupJoin(client, chat.id._serialized, chat.name);
+});
+
+client.on("group_leave", async (notification) => {
+  await handleBotRemoved(notification.id._serialized);
+});
+
+client.on("chat_new", (chat) => handleNewChat(client, chat));
+
 // Command Handler
 client.on("message", async (msg) => {
   try {
+    // Simpan pengirim pesan ke database
+    const sender = msg.from;
+    if (!msg.from.includes("@g.us")) {
+      await saveUser(sender);
+    }
+
+    // Lanjutkan dengan command handler yang sudah ada
     if (!msg.body.startsWith("!")) return;
     const args = msg.body.split(" ").slice(1);
     const command = msg.body.split(" ")[0];
@@ -80,7 +110,6 @@ client.on("message", async (msg) => {
 
       // User Commands
       "!username": () => userCommands.handleUsernameCommand(msg, args),
-      "!listuser": () => userCommands.handleListUserCommand(msg),
       "!deleteuser": () => userCommands.handleDeleteUserCommand(msg, args),
     };
 
@@ -118,8 +147,7 @@ app.listen(port, () => {
   console.log(`[BOT] Bot berjalan di port ${port}.`);
 });
 
-// Start Express Server
-// Initialize WhatsApp Client
+// Start WhatsApp Client
 async function startClient() {
   try {
     await client.initialize();

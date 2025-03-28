@@ -1,11 +1,5 @@
-const { sendReply } = require("../utils/sendReply");
-const {
-  getUserByUsername,
-  setUsername,
-  updateUsername,
-  getAllUsers,
-  deleteUserByUsername,
-} = require("../utils/authUtils");
+const { PrismaClient } = require("@prisma/client");
+const prisma = new PrismaClient();
 
 // Perintah untuk mengatur atau mengganti username
 const handleUsernameCommand = async (msg, args) => {
@@ -14,31 +8,43 @@ const handleUsernameCommand = async (msg, args) => {
     return msg.reply("❌ *Format salah!*\nGunakan: `!username [username]`.");
   }
 
-  const existingUser = await getUserByUsername(newUsername);
+  // Cek apakah username sudah digunakan
+  const existingUser = await prisma.user.findUnique({
+    where: { username: newUsername },
+  });
   if (existingUser) {
     return msg.reply("❌ *Username sudah digunakan! Coba yang lain.*");
   }
 
-  const phone = msg.from; // Menggunakan nomor pengirim sebagai ID unik
-  const user = await getUserByUsername(phone);
+  const phone = msg.from.replace("@c.us", ""); // Hilangkan @c.us
 
-  if (user) {
-    await updateUsername(phone, newUsername);
-    msg.reply(`🔄 *Username berhasil diubah menjadi:* *${newUsername}* ✅`);
-  } else {
-    await setUsername(phone, newUsername);
-    msg.reply(`🎉 *Username berhasil disimpan sebagai:* *${newUsername}* ✅`);
+  try {
+    // Cari user berdasarkan phone number
+    const user = await prisma.user.findUnique({
+      where: { phone },
+    });
+
+    if (user) {
+      // Update username jika user sudah ada
+      await prisma.user.update({
+        where: { phone },
+        data: { username: newUsername },
+      });
+      msg.reply(`🔄 *Username berhasil diubah menjadi:* *${newUsername}* ✅`);
+    } else {
+      // Buat user baru jika belum ada
+      await prisma.user.create({
+        data: {
+          phone,
+          username: newUsername,
+        },
+      });
+      msg.reply(`🎉 *Username berhasil disimpan sebagai:* *${newUsername}* ✅`);
+    }
+  } catch (error) {
+    console.error("Error handling username command:", error);
+    msg.reply("❌ *Terjadi kesalahan saat memproses permintaan.*");
   }
-};
-
-// Perintah untuk menampilkan daftar user
-const handleListUserCommand = async (msg) => {
-  const userList = await getAllUsers();
-  sendReply(
-    msg,
-    "📜 *Daftar Pengguna*",
-    userList.length ? userList.join("\n") : "❌ *Tidak ada pengguna terdaftar.*"
-  );
 };
 
 // Perintah untuk menghapus user berdasarkan username
@@ -50,19 +56,29 @@ const handleDeleteUserCommand = async (msg, args) => {
     );
   }
 
-  const user = await getUserByUsername(usernameToDelete);
-  if (!user) {
-    return msg.reply("❌ *Username tidak ditemukan!*");
-  }
+  try {
+    // Cari dan hapus user berdasarkan username
+    const deletedUser = await prisma.user.delete({
+      where: { username: usernameToDelete },
+    });
 
-  await deleteUserByUsername(usernameToDelete);
-  msg.reply(
-    `🗑️ *Pengguna dengan username ${usernameToDelete} berhasil dihapus!*`
-  );
+    if (deletedUser) {
+      msg.reply(
+        `🗑️ *Pengguna dengan username ${usernameToDelete} berhasil dihapus!*`
+      );
+    }
+  } catch (error) {
+    if (error.code === "P2025") {
+      // Error ketika record tidak ditemukan
+      msg.reply("❌ *Username tidak ditemukan!*");
+    } else {
+      console.error("Error deleting user:", error);
+      msg.reply("❌ *Terjadi kesalahan saat menghapus pengguna.*");
+    }
+  }
 };
 
 module.exports = {
   handleUsernameCommand,
-  handleListUserCommand,
   handleDeleteUserCommand,
 };

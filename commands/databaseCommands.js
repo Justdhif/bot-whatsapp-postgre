@@ -3,127 +3,263 @@ const { sendReply } = require("../utils/sendReply");
 
 const prisma = new PrismaClient();
 
+// Helper function yang disesuaikan dengan schema
+const getSourceInfo = async (msg) => {
+  try {
+    const isGroup = msg.from.includes("@g.us");
+    const sourceId = isGroup
+      ? msg.from.replace("@g.us", "")
+      : msg.from.replace("@c.us", "").replace(/\D/g, "");
+
+    return {
+      sourceType: isGroup ? "group" : "private",
+      sourceId,
+      isGroup,
+    };
+  } catch (error) {
+    console.error("Error in getSourceInfo:", error);
+    return {
+      sourceType: "private",
+      sourceId: "unknown",
+      isGroup: false,
+    };
+  }
+};
+
 // ====================== HANDLE SET ======================
 const handleSetCommand = async (msg, args) => {
+  let prismaInstance;
   try {
+    prismaInstance = new PrismaClient();
+
     if (!msg.hasQuotedMsg) {
-      return msg.reply("❌ Silakan reply pesan untuk menyimpan value");
+      return await msg.reply("❌ Silakan reply pesan untuk menyimpan value");
     }
 
     const quotedMsg = await msg.getQuotedMessage();
     const value = quotedMsg.body;
     const key = args.join(" ").trim();
+    const { sourceId, isGroup } = await getSourceInfo(msg);
 
     if (!key) {
-      return msg.reply(
+      return await msg.reply(
         "❌ Format salah!\nGunakan: `!set [key]`\nContoh: `!set tugas` (reply pesan untuk value)"
       );
     }
 
-    await prisma.data.upsert({
-      where: { key },
-      update: { value, isDeleted: false },
-      create: { key, value, isDeleted: false },
+    // Pastikan Group/Chat sudah ada
+    if (isGroup) {
+      await prismaInstance.group.upsert({
+        where: { groupId: sourceId },
+        create: {
+          groupId: sourceId,
+          name: `Group-${sourceId}`,
+          isActive: true,
+        },
+        update: {},
+      });
+    } else {
+      // Untuk private chat, pastikan chat dan user ada
+      const formattedPhone = sourceId;
+
+      await prismaInstance.chat.upsert({
+        where: { phone: formattedPhone },
+        create: {
+          phone: formattedPhone,
+          isActive: true,
+        },
+        update: {},
+      });
+
+      // Buat user jika belum ada
+      await prismaInstance.user.upsert({
+        where: { phone: formattedPhone },
+        create: {
+          phone: formattedPhone,
+          username: `user-${Date.now()}`,
+          chat: {
+            connect: { phone: formattedPhone },
+          },
+        },
+        update: {},
+      });
+    }
+
+    // Hapus data lama jika ada
+    await prismaInstance.data.deleteMany({
+      where: {
+        key,
+        OR: [
+          { group: isGroup ? { groupId: sourceId } : null },
+          { chat: !isGroup ? { phone: sourceId } : null },
+        ],
+      },
     });
 
-    return msg.reply(`✅ Berhasil menyimpan: *${key}*`);
+    // Buat data baru dengan relasi yang benar
+    const createData = {
+      key,
+      value,
+      createdBy: msg.from.replace("@c.us", "").replace(/\D/g, ""),
+      isDeleted: false,
+      createdAt: new Date(),
+    };
+
+    if (isGroup) {
+      createData.group = { connect: { groupId: sourceId } };
+    } else {
+      createData.chat = { connect: { phone: sourceId } };
+    }
+
+    await prismaInstance.data.create({
+      data: createData,
+    });
+
+    return await msg.reply(`✅ Berhasil menyimpan: *${key}*`);
   } catch (error) {
     console.error("SetCommand error:", error);
-    return msg.reply("❌ Gagal menyimpan data");
+    return await msg.reply("❌ Gagal menyimpan data");
   } finally {
-    await prisma.$disconnect();
+    if (prismaInstance) {
+      await prismaInstance.$disconnect();
+    }
   }
 };
 
 // ====================== HANDLE GET ======================
 const handleGetCommand = async (msg, args) => {
+  let prismaInstance;
   try {
+    prismaInstance = new PrismaClient();
+
     const key = args.join(" ").trim();
+    const { sourceType, sourceId, isGroup } = await getSourceInfo(msg);
+
     if (!key) {
-      return msg.reply(
+      return await msg.reply(
         "❌ Format salah!\nGunakan: `!get [key]`\nContoh: `!get tugas`"
       );
     }
 
-    const data = await prisma.data.findFirst({
-      where: { key, isDeleted: false },
+    const data = await prismaInstance.data.findFirst({
+      where: {
+        key,
+        OR: [
+          { group: isGroup ? { groupId: sourceId } : null },
+          { chat: !isGroup ? { phone: sourceId } : null },
+        ],
+        isDeleted: false,
+      },
     });
 
     if (!data) {
-      return msg.reply(`❌ Data *"${key}"* tidak ditemukan`);
+      return await msg.reply(`❌ Data *"${key}"* tidak ditemukan`);
     }
 
-    return msg.reply(`🔍 *${key}*:\n${data.value}`);
+    return await msg.reply(`🔍 *${key}*:\n${data.value}`);
   } catch (error) {
     console.error("GetCommand error:", error);
-    return msg.reply("❌ Gagal mengambil data");
+    return await msg.reply("❌ Gagal mengambil data");
   } finally {
-    await prisma.$disconnect();
+    if (prismaInstance) {
+      await prismaInstance.$disconnect();
+    }
   }
 };
 
 // ====================== HANDLE DELETE ======================
 const handleDeleteCommand = async (msg, args) => {
+  let prismaInstance;
   try {
+    prismaInstance = new PrismaClient();
+
     const key = args.join(" ").trim();
+    const { sourceType, sourceId, isGroup } = await getSourceInfo(msg);
+
     if (!key) {
-      return msg.reply(
+      return await msg.reply(
         "❌ Format salah!\nGunakan: `!delete [key]`\nContoh: `!delete tugas`"
       );
     }
 
-    const data = await prisma.data.findFirst({
-      where: { key, isDeleted: false },
+    const result = await prismaInstance.data.updateMany({
+      where: {
+        key,
+        OR: [
+          { group: isGroup ? { groupId: sourceId } : null },
+          { chat: !isGroup ? { phone: sourceId } : null },
+        ],
+        isDeleted: false,
+      },
+      data: {
+        isDeleted: true,
+        updatedAt: new Date(),
+      },
     });
 
-    if (!data) {
-      return msg.reply(`❌ Data *"${key}"* tidak ditemukan`);
+    if (result.count === 0) {
+      return await msg.reply(`❌ Data *"${key}"* tidak ditemukan`);
     }
 
-    await prisma.data.update({
-      where: { key },
-      data: { isDeleted: true },
-    });
-
-    return msg.reply(`🗑️ Berhasil menghapus: *${key}*`);
+    return await msg.reply(`🗑️ Berhasil menghapus: *${key}*`);
   } catch (error) {
     console.error("DeleteCommand error:", error);
-    return msg.reply("❌ Gagal menghapus data");
+    return await msg.reply("❌ Gagal menghapus data");
   } finally {
-    await prisma.$disconnect();
+    if (prismaInstance) {
+      await prismaInstance.$disconnect();
+    }
   }
 };
 
 // ====================== HANDLE LIST ======================
 const handleListCommand = async (msg) => {
+  let prismaInstance;
   try {
-    const allData = await prisma.data.findMany({
-      where: { isDeleted: false },
+    prismaInstance = new PrismaClient();
+
+    const { sourceType, sourceId, isGroup } = await getSourceInfo(msg);
+
+    const allData = await prismaInstance.data.findMany({
+      where: {
+        OR: [
+          { group: isGroup ? { groupId: sourceId } : null },
+          { chat: !isGroup ? { phone: sourceId } : null },
+        ],
+        isDeleted: false,
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+      take: 50,
     });
 
     if (allData.length === 0) {
-      return sendReply(msg, "DATA_LIST", "📭 Tidak ada data yang tersimpan");
+      return await sendReply(
+        msg,
+        "DATA_LIST",
+        "📭 Tidak ada data yang tersimpan"
+      );
     }
 
-    const message = `📋 Daftar Data:\n\n${allData
-      .map((data) => `🔑 *${data.key}*`)
+    const message = `📋 *Daftar Data (${allData.length}):*\n\n${allData
+      .map((data, index) => `${index + 1}. 🔑 *${data.key}*`)
       .join("\n")}`;
 
-    return sendReply(msg, "DATA_LIST", message);
+    return await sendReply(msg, "DATA LIST", message);
   } catch (error) {
     console.error("ListCommand error:", error);
-    return sendReply(msg, "ERROR", "❌ Gagal mengambil daftar data");
+    return await sendReply(msg, "ERROR", "❌ Gagal mengambil daftar data");
   } finally {
-    await prisma.$disconnect();
+    if (prismaInstance) {
+      await prismaInstance.$disconnect();
+    }
   }
 };
 
-// ====================== EXPORT MODULE ======================
 module.exports = {
   handleSetCommand,
   handleGetCommand,
   handleDeleteCommand,
   handleListCommand,
 };
-
-// ====================== END OF FILE ======================

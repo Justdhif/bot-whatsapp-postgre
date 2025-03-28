@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -16,46 +10,154 @@ datasource db {
 model User {
   id        String   @id @default(uuid())
   phone     String   @unique
-  username  String?
+  username  String?  @unique
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  lastActivity DateTime?
+  
+  // Relasi ke Chat (foreign key di User)
+  chatId    String?  @unique @map("chat_id")
+  chat      Chat?    @relation(fields: [chatId], references: [id])
+  
+  @@map("users")
+}
+
+model Group {
+  id            String   @id @default(uuid())
+  groupId       String   @unique
+  name          String?
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  lastJoinedAt  DateTime?
+  lastLeftAt    DateTime?
+  
+  // Relasi ke berbagai model
+  data      Data[]
+  finances  Finance[]
+  notes     Note[]
+  todos     Todo[]
+  
+  @@map("groups")
+}
+
+model Chat {
+  id         String   @id @default(uuid())
+  phone      String?  @unique
+  lastActive DateTime @default(now())
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  
+  // Relasi ke User (one-to-one, references dari User)
+  user       User?
+  
+  // Relasi ke berbagai model
+  data      Data[]
+  finances  Finance[]
+  notes     Note[]
+  todos     Todo[]
+  
+  @@map("chats")
 }
 
 model Data {
-  key       String   @id
-  value     String?
-  isDeleted Boolean  @default(false)
-  createdAt DateTime @default(now()) @map("created_at")
+  key        String   @id
+  value      String?
+  isDeleted  Boolean  @default(false)
+  createdBy  String?
+  createdAt  DateTime @default(now()) @map("created_at")
+  
+  // Relasi ke Group (opsional)
+  groupId    String?  @map("group_id")
+  group      Group?   @relation(fields: [groupId], references: [id])
+  
+  // Relasi ke Chat (opsional)
+  chatId     String?  @map("chat_id")
+  chat       Chat?    @relation(fields: [chatId], references: [id])
+  
+  @@index([groupId], name: "idx_data_group")
+  @@index([chatId], name: "idx_data_chat")
+  @@map("datas")
 }
 
 model Finance {
   id          Int      @id @default(autoincrement())
-  type        String   // 'income' atau 'expense'
+  type        String
   amount      Float
   description String?
-  isDeleted Boolean  @default(false)
+  isDeleted   Boolean  @default(false)
+  createdBy   String?
   createdAt   DateTime @default(now()) @map("created_at")
+  
+  // Relasi ke Group (opsional)
+  groupId    String?  @map("group_id")
+  group      Group?   @relation(fields: [groupId], references: [id])
+  
+  // Relasi ke Chat (opsional)
+  chatId     String?  @map("chat_id")
+  chat       Chat?    @relation(fields: [chatId], references: [id])
+  
+  @@index([groupId], name: "idx_finance_group")
+  @@index([chatId], name: "idx_finance_chat")
+  @@map("finances")
 }
 
-model Notes {
-  id        Int      @id @default(autoincrement())
-  key       String   @unique
-  value     String?
-  isDeleted Boolean  @default(false)
-  createdAt DateTime @default(now()) @map("created_at")
+model Note {
+  id          Int      @id @default(autoincrement())
+  key         String
+  value       String?
+  isDeleted   Boolean  @default(false)
+  createdBy   String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  
+  // Relasi ke Group (opsional)
+  groupId    String?  @map("group_id")
+  group      Group?   @relation(fields: [groupId], references: [id])
+  
+  // Relasi ke Chat (opsional)
+  chatId     String?  @map("chat_id")
+  chat       Chat?    @relation(fields: [chatId], references: [id])
+  
+  @@unique([key, groupId, chatId], name: "idx_note_unique")
+  @@index([groupId], name: "idx_note_group")
+  @@index([chatId], name: "idx_note_chat")
+  @@map("notes")
 }
 
 model Todo {
   id          Int      @id @default(autoincrement())
-  userId      String   @map("user_id")
   task        String
   priority    String   @default("medium")
   isCompleted Boolean  @default(false) @map("is_completed")
-  isDeleted Boolean  @default(false)
+  isDeleted   Boolean  @default(false)
+  createdBy   String?
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
   completedAt DateTime?
-
-  @@index([userId], name: "idx_user_id")
+  
+  // Relasi ke Group (opsional)
+  groupId    String?  @map("group_id")
+  group      Group?   @relation(fields: [groupId], references: [id])
+  
+  // Relasi ke Chat (opsional)
+  chatId     String?  @map("chat_id")
+  chat       Chat?    @relation(fields: [chatId], references: [id])
+  
+  @@index([groupId], name: "idx_todo_group")
+  @@index([chatId], name: "idx_todo_chat")
   @@map("todos")
+}
+
+model GroupLog {
+  id          String   @id @default(uuid())
+  groupId     String
+  action      String   // 'BOT_JOINED', 'BOT_LEFT', 'BOT_REMOVED', 'BOT_REJOINED'
+  description String?
+  metadata    Json?    // Untuk menyimpan data tambahan
+  createdAt   DateTime @default(now()) @map("created_at")
+  
+  @@index([groupId], name: "idx_group_log_group")
+  @@index([createdAt], name: "idx_group_log_created_at")
+  @@map("group_logs")
 }

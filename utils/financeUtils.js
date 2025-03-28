@@ -6,7 +6,12 @@ const path = require("path");
 const prisma = new PrismaClient();
 
 // Menangani pemasukan & pengeluaran
-const handleFinanceCommand = async (msg, args, type) => {
+const handleFinanceCommand = async (
+  msg,
+  args,
+  type,
+  { sourceType, sourceId, isGroup }
+) => {
   const amount = parseFloat(args[0]);
   const description = args.slice(1).join(" ") || "Tanpa deskripsi";
 
@@ -17,8 +22,45 @@ const handleFinanceCommand = async (msg, args, type) => {
   }
 
   try {
+    // Pastikan Group/Chat sudah ada
+    if (isGroup) {
+      await prisma.group.upsert({
+        where: { groupId: sourceId },
+        create: {
+          groupId: sourceId,
+          name: `Group-${sourceId}`,
+          isActive: true,
+        },
+        update: {},
+      });
+    } else {
+      await prisma.chat.upsert({
+        where: { phone: sourceId },
+        create: {
+          phone: sourceId,
+          isActive: true,
+        },
+        update: {},
+      });
+    }
+
+    // Buat data keuangan dengan relasi
+    const createData = {
+      type,
+      amount,
+      description,
+      isDeleted: false,
+      createdBy: msg.from.replace("@c.us", "").replace(/\D/g, ""),
+    };
+
+    if (isGroup) {
+      createData.group = { connect: { groupId: sourceId } };
+    } else {
+      createData.chat = { connect: { phone: sourceId } };
+    }
+
     await prisma.finance.create({
-      data: { type, amount, description, isDeleted: false },
+      data: createData,
     });
 
     msg.reply(
@@ -64,32 +106,32 @@ const generateSheet = (data) =>
   XLSX.utils.json_to_sheet(
     data.map((item, index) => ({
       No: index + 1,
+      Tipe: item.type === "income" ? "Pemasukan" : "Pengeluaran",
       Jumlah: item.amount,
       Deskripsi: item.description,
-      Tanggal: new Date(item.date).toLocaleDateString("id-ID"),
+      Sumber: item.groupId
+        ? `Group: ${item.group?.name || item.groupId}`
+        : `Chat: ${item.chat?.phone || item.chatId}`,
+      Tanggal: item.createdAt.toLocaleDateString("id-ID"),
     }))
   );
 
 // Membuat file laporan keuangan dalam bentuk Excel
-const createExcelFile = async () => {
+const createExcelFile = async (data) => {
   try {
-    const financeData = await prisma.finance.findMany({
-      where: { isDeleted: false },
-    });
-
     const incomeSheet = generateSheet(
-      financeData.filter((item) => item.type === "income")
+      data.filter((item) => item.type === "income")
     );
     const expenseSheet = generateSheet(
-      financeData.filter((item) => item.type === "expense")
+      data.filter((item) => item.type === "expense")
     );
 
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, incomeSheet, "Income");
-    XLSX.utils.book_append_sheet(workbook, expenseSheet, "Expenses");
+    XLSX.utils.book_append_sheet(workbook, incomeSheet, "Pemasukan");
+    XLSX.utils.book_append_sheet(workbook, expenseSheet, "Pengeluaran");
 
     const reportsDir = path.join(__dirname, "../reports");
-    await fs.ensureDir(reportsDir); // Pastikan folder ada
+    await fs.ensureDir(reportsDir);
 
     const filePath = path.join(reportsDir, "finance_report.xlsx");
     XLSX.writeFile(workbook, filePath);

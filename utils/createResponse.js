@@ -7,6 +7,11 @@ const imagePath = path.join(__dirname, "../public/profile-pic.jpg");
 
 module.exports = {
   createResponse: (title, content) => {
+    if (!content || typeof content !== "string") {
+      console.error("❌ Error: content tidak valid:", content);
+      content = "⚠️ Tidak ada data yang dapat ditampilkan.";
+    }
+
     const formattedContent = content
       .split("\n")
       .map((line) => `│ ${line}`)
